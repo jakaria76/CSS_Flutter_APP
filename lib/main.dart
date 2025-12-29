@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'welcome_page.dart';
 
 import 'home_page.dart';
 import 'onboarding_page.dart';
@@ -35,7 +36,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
       ),
       home: seenOnboarding
-          ? const HomePage()
+          ? const WelcomePage()
           : const OnboardingPage(),
     );
   }
