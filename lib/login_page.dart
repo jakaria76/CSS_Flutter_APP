@@ -14,24 +14,23 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  final SupabaseClient supabase = Supabase.instance.client;
+
   bool loading = false;
   bool obscure = true;
 
+  // ================= LOGIN =================
   Future<void> login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Email & password required')),
-      );
+      _showMessage('Email and password are required');
       return;
     }
 
     try {
       setState(() => loading = true);
-
-      final supabase = Supabase.instance.client;
 
       final authRes = await supabase.auth.signInWithPassword(
         email: email,
@@ -39,18 +38,22 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       final user = authRes.user;
-      if (user == null) throw Exception('Login failed');
+      if (user == null) {
+        throw const AuthException('Login failed');
+      }
 
+      // Fetch role from profiles table
       final profile = await supabase
           .from('profiles')
           .select('role')
           .eq('id', user.id)
           .single();
 
-      final role = profile['role'];
+      final role = profile['role'] as String;
 
       if (!mounted) return;
 
+      // Role-based navigation
       if (role == 'admin') {
         Navigator.pushAndRemoveUntil(
           context,
@@ -66,15 +69,30 @@ class _LoginPageState extends State<LoginPage> {
               (_) => false,
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+    } on AuthException catch (e) {
+      _showMessage(e.message);
+    } catch (_) {
+      _showMessage('Invalid email or password');
     } finally {
-      setState(() => loading = false);
+      if (mounted) setState(() => loading = false);
     }
   }
 
+  void _showMessage(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -97,7 +115,7 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                /// BACK BUTTON
+                /// BACK
                 IconButton(
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
                   onPressed: () => Navigator.pop(context),
@@ -147,8 +165,7 @@ class _LoginPageState extends State<LoginPage> {
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           labelText: 'Email',
-                          prefixIcon:
-                          const Icon(Icons.email_outlined, color: Colors.grey),
+                          prefixIcon: const Icon(Icons.email_outlined),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
                           ),
@@ -163,18 +180,15 @@ class _LoginPageState extends State<LoginPage> {
                         obscureText: obscure,
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          prefixIcon:
-                          const Icon(Icons.lock_outline, color: Colors.grey),
+                          prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
                             icon: Icon(
                               obscure
                                   ? Icons.visibility_off
                                   : Icons.visibility,
-                              color: Colors.grey,
                             ),
-                            onPressed: () {
-                              setState(() => obscure = !obscure);
-                            },
+                            onPressed: () =>
+                                setState(() => obscure = !obscure),
                           ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(18),
@@ -189,14 +203,13 @@ class _LoginPageState extends State<LoginPage> {
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
+                          onPressed: loading ? null : login,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF1D2671),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            elevation: 6,
                           ),
-                          onPressed: loading ? null : login,
                           child: Text(
                             loading ? 'Signing in...' : 'Login',
                             style: const TextStyle(
