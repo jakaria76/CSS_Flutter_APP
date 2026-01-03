@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'member_home.dart';
@@ -14,10 +15,17 @@ class _SignupPageState extends State<SignupPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  final SupabaseClient supabase = Supabase.instance.client;
+
   bool loading = false;
   bool obscure = true;
 
-  Future<void> signup() async {
+  StreamSubscription<AuthState>? _authSub;
+
+  // ================= EMAIL SIGNUP =================
+  Future<void> signupWithEmail() async {
+    if (loading) return;
+
     final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -30,65 +38,118 @@ class _SignupPageState extends State<SignupPage> {
     try {
       setState(() => loading = true);
 
-      final supabase = Supabase.instance.client;
-
-      final res = await supabase.auth.signUp(
+      await supabase.auth.signUp(
         email: email,
         password: password,
+        data: {'name': name},
       );
 
-      final user = res.user;
-      if (user == null) throw Exception('Signup failed');
-
-      await supabase.from('profiles').insert({
-        'id': user.id,
-        'name': name,
-        'email': email,
-        'role': 'member',
-        'created_at': DateTime.now().toIso8601String(),
-      });
-
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const MemberHome(isGuest: false),
-        ),
-            (_) => false,
-      );
-    } catch (e) {
-      _showMessage(e.toString());
+      _showMessage('Check your email to verify your account');
+    } on AuthException catch (e) {
+      _showMessage(e.message);
+    } catch (_) {
+      _showMessage('Signup failed');
     } finally {
       if (mounted) setState(() => loading = false);
     }
   }
 
+  // ================= GOOGLE LOGIN =================
+  Future<void> signupWithGoogle() async {
+    try {
+      await supabase.auth.signInWithOAuth(OAuthProvider.google);
+    } catch (_) {
+      _showMessage('Google login failed');
+    }
+  }
+
+  // ================= FACEBOOK LOGIN =================
+  Future<void> signupWithFacebook() async {
+    try {
+      await supabase.auth.signInWithOAuth(OAuthProvider.facebook);
+    } catch (_) {
+      _showMessage('Facebook login failed');
+    }
+  }
+
+  // ================= PROFILE CREATE =================
+  Future<void> _createProfileIfNotExists({
+    required String userId,
+    required String email,
+    String? name,
+  }) async {
+    final existing = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (existing == null) {
+      await supabase.from('profiles').insert({
+        'id': userId,
+        'name': name ?? 'User',
+        'email': email,
+        'role': 'member',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    }
+  }
+
+  // ================= NAVIGATION =================
+  void _goToHome() {
+    if (!mounted) return;
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const MemberHome(isGuest: false),
+      ),
+          (_) => false,
+    );
+  }
+
   void _showMessage(String msg) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg)),
     );
   }
 
+  // ================= AUTH LISTENER =================
+  @override
+  void initState() {
+    super.initState();
+
+    _authSub = supabase.auth.onAuthStateChange.listen((data) async {
+      final user = data.session?.user;
+
+      if (user != null) {
+        await _createProfileIfNotExists(
+          userId: user.id,
+          email: user.email ?? '',
+          name: user.userMetadata?['name'],
+        );
+        _goToHome();
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _authSub?.cancel();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
+  // ================= UI =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        width: double.infinity,
-        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFF1D2671),
-              Color(0xFFC33764),
-            ],
+            colors: [Color(0xFF1D2671), Color(0xFFC33764)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -99,15 +160,11 @@ class _SignupPageState extends State<SignupPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                /// BACK BUTTON
                 IconButton(
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
                   onPressed: () => Navigator.pop(context),
                 ),
-
                 const SizedBox(height: 20),
-
-                /// HEADER
                 const Text(
                   'Create Account',
                   style: TextStyle(
@@ -116,18 +173,13 @@ class _SignupPageState extends State<SignupPage> {
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 8),
                 const Text(
                   'Join Conscious Student Society',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.white70,
-                  ),
+                  style: TextStyle(color: Colors.white70),
                 ),
+                const SizedBox(height: 40),
 
-                const SizedBox(height: 45),
-
-                /// SIGNUP CARD
+                // ================= CARD =================
                 Container(
                   padding: const EdgeInsets.all(28),
                   decoration: BoxDecoration(
@@ -135,47 +187,38 @@ class _SignupPageState extends State<SignupPage> {
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: const [
                       BoxShadow(
-                        color: Colors.black26,
                         blurRadius: 22,
                         offset: Offset(0, 12),
+                        color: Colors.black26,
                       ),
                     ],
                   ),
                   child: Column(
                     children: [
-                      /// NAME
-                      _inputField(
+                      _input(
                         controller: _nameController,
                         label: 'Name',
                         icon: Icons.person_outline,
                       ),
-
-                      const SizedBox(height: 18),
-
-                      /// EMAIL
-                      _inputField(
+                      const SizedBox(height: 16),
+                      _input(
                         controller: _emailController,
                         label: 'Email',
                         icon: Icons.email_outlined,
                         keyboard: TextInputType.emailAddress,
                       ),
-
-                      const SizedBox(height: 18),
-
-                      /// PASSWORD
+                      const SizedBox(height: 16),
                       TextField(
                         controller: _passwordController,
                         obscureText: obscure,
                         decoration: InputDecoration(
                           labelText: 'Password',
-                          prefixIcon:
-                          const Icon(Icons.lock_outline, color: Colors.grey),
+                          prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
                             icon: Icon(
                               obscure
                                   ? Icons.visibility_off
                                   : Icons.visibility,
-                              color: Colors.grey,
                             ),
                             onPressed: () =>
                                 setState(() => obscure = !obscure),
@@ -185,21 +228,19 @@ class _SignupPageState extends State<SignupPage> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 30),
 
-                      const SizedBox(height: 36),
-
-                      /// CREATE ACCOUNT BUTTON
+                      // EMAIL SIGNUP
                       SizedBox(
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: loading ? null : signup,
+                          onPressed: loading ? null : signupWithEmail,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF1D2671),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            elevation: 6,
                           ),
                           child: Text(
                             loading
@@ -208,9 +249,52 @@ class _SignupPageState extends State<SignupPage> {
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
                             ),
                           ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // GOOGLE LOGIN
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: OutlinedButton.icon(
+                          icon: Image.asset(
+                            'assets/images/google.png',
+                            height: 22,
+                          ),
+                          label: const Text(
+                            'Continue with Google',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          onPressed: signupWithGoogle,
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      // FACEBOOK LOGIN
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(
+                            Icons.facebook,
+                            color: Colors.blue,
+                          ),
+                          label: const Text(
+                            'Continue with Facebook',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          onPressed: signupWithFacebook,
                         ),
                       ),
                     ],
@@ -218,14 +302,11 @@ class _SignupPageState extends State<SignupPage> {
                 ),
 
                 const SizedBox(height: 40),
-
-                /// FOOTER
                 Center(
                   child: Text(
                     'Conscious Student Society',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.75),
-                      fontSize: 13,
                     ),
                   ),
                 ),
@@ -237,7 +318,7 @@ class _SignupPageState extends State<SignupPage> {
     );
   }
 
-  Widget _inputField({
+  Widget _input({
     required TextEditingController controller,
     required String label,
     required IconData icon,
@@ -248,7 +329,7 @@ class _SignupPageState extends State<SignupPage> {
       keyboardType: keyboard,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: Colors.grey),
+        prefixIcon: Icon(icon),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
         ),

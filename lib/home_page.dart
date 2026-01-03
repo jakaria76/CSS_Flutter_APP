@@ -20,27 +20,31 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> testConnection() async {
+    setState(() {
+      loading = true;
+      message = 'Checking Supabase connection...';
+    });
+
     try {
       final supabase = Supabase.instance.client;
 
-      await supabase
-          .from('test_connection')
-          .select()
-          .limit(1);
+      // ✅ Correct Flutter way
+      supabase.auth.currentSession;
 
       setState(() {
         connected = true;
         message = 'Supabase connected successfully';
+        loading = false;
       });
     } catch (e) {
       setState(() {
         connected = false;
         message = 'Connection failed:\n$e';
+        loading = false;
       });
-    } finally {
-      setState(() => loading = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +81,7 @@ class _HomePageState extends State<HomePage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                /// ICON
+                // ================= ICON =================
                 CircleAvatar(
                   radius: 45,
                   backgroundColor: connected
@@ -92,7 +96,7 @@ class _HomePageState extends State<HomePage> {
 
                 const SizedBox(height: 24),
 
-                /// TITLE
+                // ================= TITLE =================
                 Text(
                   connected ? 'Connection Successful' : 'Connection Error',
                   style: TextStyle(
@@ -104,7 +108,7 @@ class _HomePageState extends State<HomePage> {
 
                 const SizedBox(height: 12),
 
-                /// MESSAGE
+                // ================= MESSAGE =================
                 Text(
                   loading ? 'Please wait...' : message,
                   textAlign: TextAlign.center,
@@ -116,7 +120,7 @@ class _HomePageState extends State<HomePage> {
 
                 const SizedBox(height: 30),
 
-                /// ACTION BUTTON
+                // ================= ACTION BUTTON =================
                 SizedBox(
                   width: double.infinity,
                   height: 48,

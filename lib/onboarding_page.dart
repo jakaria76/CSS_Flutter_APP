@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'welcome_page.dart';
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
@@ -34,14 +33,14 @@ class _OnboardingPageState extends State<OnboardingPage> {
     },
   ];
 
+  /// Finish onboarding & go to Welcome page
   Future<void> finish() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('seen_onboarding', true);
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const WelcomePage()),
-    );
+    if (!mounted) return;
+
+    Navigator.pushReplacementNamed(context, '/welcome');
   }
 
   @override
@@ -102,7 +101,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             },
           ),
 
-          /// SKIP BUTTON (TOP RIGHT)
+          /// SKIP BUTTON
           Positioned(
             top: 45,
             right: 20,
@@ -126,7 +125,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             right: 20,
             child: Column(
               children: [
-                /// DOT INDICATOR
+                /// DOTS
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(
@@ -146,7 +145,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
                 const SizedBox(height: 20),
 
-                /// NEXT / FINISH BUTTON
+                /// NEXT / FINISH
                 SizedBox(
                   width: double.infinity,
                   height: 50,

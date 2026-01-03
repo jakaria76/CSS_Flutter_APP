@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'login_page.dart';
-import 'signup_page.dart';
-import 'member_home.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
@@ -98,12 +95,7 @@ class WelcomePage extends StatelessWidget {
                             ),
                           ),
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const LoginPage(),
-                              ),
-                            );
+                            Navigator.pushNamed(context, '/login');
                           },
                           child: const Text(
                             'Login',
@@ -133,12 +125,7 @@ class WelcomePage extends StatelessWidget {
                             ),
                           ),
                           onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const SignupPage(),
-                              ),
-                            );
+                            Navigator.pushNamed(context, '/signup');
                           },
                           child: const Text(
                             'Create Account',
@@ -156,12 +143,10 @@ class WelcomePage extends StatelessWidget {
                       /// GUEST MODE
                       TextButton(
                         onPressed: () {
-                          Navigator.pushReplacement(
+                          Navigator.pushNamedAndRemoveUntil(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                              const MemberHome(isGuest: true),
-                            ),
+                            '/home',
+                                (_) => false,
                           );
                         },
                         child: const Text(
