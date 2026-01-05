@@ -41,7 +41,9 @@ class _SignupPageState extends State<SignupPage> {
       await supabase.auth.signUp(
         email: email,
         password: password,
-        data: {'name': name},
+        data: {
+          'name': name, // email signup metadata
+        },
       );
 
       _showMessage('Check your email to verify your account');
@@ -72,22 +74,24 @@ class _SignupPageState extends State<SignupPage> {
     }
   }
 
-  // ================= PROFILE CREATE =================
+  // ================= PROFILE CREATE (FINAL FIX) =================
   Future<void> _createProfileIfNotExists({
     required String userId,
     required String email,
-    String? name,
+    Map<String, dynamic>? metadata,
   }) async {
     final existing = await supabase
         .from('profiles')
         .select('id')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .maybeSingle();
 
     if (existing == null) {
       await supabase.from('profiles').insert({
-        'id': userId,
-        'name': name ?? 'User',
+        'user_id': userId,
+        'name': metadata?['full_name'] ??
+            metadata?['name'] ??
+            'User',
         'email': email,
         'role': 'member',
         'created_at': DateTime.now().toIso8601String(),
@@ -126,7 +130,7 @@ class _SignupPageState extends State<SignupPage> {
         await _createProfileIfNotExists(
           userId: user.id,
           email: user.email ?? '',
-          name: user.userMetadata?['name'],
+          metadata: user.userMetadata,
         );
         _goToHome();
       }

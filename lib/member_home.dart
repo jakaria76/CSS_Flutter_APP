@@ -1,231 +1,368 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'welcome_page.dart';
+import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 
-class MemberHome extends StatelessWidget {
+import 'welcome_page.dart';
+import 'dashboard_page.dart';
+import 'list_page.dart';
+import 'profile_page.dart';
+
+class MemberHome extends StatefulWidget {
   final bool isGuest;
   const MemberHome({super.key, required this.isGuest});
 
-  // ================= LOGOUT FUNCTION =================
-  Future<void> _logout(BuildContext context) async {
-    try {
-      // ✅ Supabase real logout
-      await Supabase.instance.client.auth.signOut();
+  @override
+  State<MemberHome> createState() => _MemberHomeState();
+}
 
-      // ✅ Clear navigation stack & go to WelcomePage
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const WelcomePage()),
-            (route) => false,
-      );
+class _MemberHomeState extends State<MemberHome> {
+  int selectedIndex = 0; // drawer
+  int _page = 0; // bottom nav
+
+  final GlobalKey<CurvedNavigationBarState> _bottomNavigationKey =
+  GlobalKey<CurvedNavigationBarState>();
+
+  String? userName;
+  String? userEmail;
+  bool loadingProfile = true;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.isGuest) {
+      _loadProfile();
+    } else {
+      userName = 'Guest User';
+      userEmail = '';
+      loadingProfile = false;
+    }
+  }
+
+  // ================= LOAD PROFILE =================
+  Future<void> _loadProfile() async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+
+    if (user == null) {
+      setState(() => loadingProfile = false);
+      return;
+    }
+
+    try {
+      final data = await client
+          .from('profiles')
+          .select('name, email')
+          .eq('user_id', user.id)
+          .single();
+
+      setState(() {
+        userName = data['name'];
+        userEmail = data['email'];
+        loadingProfile = false;
+      });
     } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Logout failed')),
+      setState(() {
+        userName =
+            user.userMetadata?['full_name'] ??
+                user.userMetadata?['name'] ??
+                'User';
+        userEmail = user.email;
+        loadingProfile = false;
+      });
+    }
+  }
+
+  // ================= LOGOUT =================
+  Future<void> _logout() async {
+    await Supabase.instance.client.auth.signOut();
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const WelcomePage()),
+            (_) => false,
       );
     }
+  }
+
+  // ================= PAGE SWITCH (FIXED NAV) =================
+  Widget _buildPage() {
+    return IndexedStack(
+      index: _page,
+      children: const [
+        DashboardPage(),
+        ListPage(),
+        ProfilePage(),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FB),
+
+      // ================= APP BAR =================
       appBar: AppBar(
+        backgroundColor: Colors.white,
         elevation: 0,
-        backgroundColor: const Color(0xFF1D2671),
-        title: Text(
-          isGuest ? 'Guest Dashboard' : 'Member Dashboard',
-          style: const TextStyle(
+        iconTheme: const IconThemeData(color: Colors.black87),
+        title: const Text(
+          'CSS',
+          style: TextStyle(
+            color: Colors.black87,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
           ),
         ),
-        actions: [
-          if (!isGuest)
-            IconButton(
-              icon: const Icon(Icons.logout, color: Colors.white),
-              onPressed: () => _logout(context),
-            ),
-        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ================= HEADER CARD =================
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF1D2671),
-                    Color(0xFFC33764),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isGuest ? 'Welcome, Guest 👋' : 'Welcome Back 👋',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    isGuest
-                        ? 'You are exploring CSS as a guest user'
-                        : 'Thank you for being a valued member of CSS',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
-              ),
-            ),
 
-            const SizedBox(height: 30),
-
-            // ================= SECTION TITLE =================
-            const Text(
-              'Quick Access',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ================= GRID MENU =================
-            GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: 2,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              children: const [
-                _DashboardCard(
-                  icon: Icons.campaign,
-                  title: 'Notices',
-                  subtitle: 'Latest updates',
-                  color: Colors.blue,
-                ),
-                _DashboardCard(
-                  icon: Icons.event,
-                  title: 'Events',
-                  subtitle: 'Upcoming programs',
-                  color: Colors.orange,
-                ),
-                _DashboardCard(
-                  icon: Icons.video_library,
-                  title: 'Videos',
-                  subtitle: 'Media gallery',
-                  color: Colors.purple,
-                ),
-                _DashboardCard(
-                  icon: Icons.groups,
-                  title: 'Advisors',
-                  subtitle: 'Our mentors',
-                  color: Colors.green,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 30),
-
-            // ================= GUEST WARNING =================
-            if (isGuest)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  borderRadius: BorderRadius.circular(14),
-                ),
+      // ================= DRAWER =================
+      drawer: Drawer(
+        width: 300,
+        backgroundColor: Colors.white,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // ===== HEADER =====
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
                 child: Row(
                   children: [
-                    const Icon(Icons.lock_outline, color: Colors.orange),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Some features are restricted. Create an account to unlock full access.',
-                        style: TextStyle(
-                          color: Colors.orange.shade800,
-                          fontSize: 14,
+                    Container(
+                      height: 44,
+                      width: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: Image.asset(
+                          'assets/images/csslogo.jpg',
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text(
+                          'CSS Dashboard',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Member Panel',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-          ],
+
+              const Divider(height: 1),
+              const SizedBox(height: 8),
+
+              // ===== MAIN MENU =====
+              _menuItem(0, Icons.grid_view, 'Dashboard'),
+              _menuItem(1, Icons.inventory_2_outlined, 'Products'),
+              _menuItem(2, Icons.mail_outline, 'Mail'),
+              _menuItem(3, Icons.campaign_outlined, 'Campaigns'),
+              _menuItem(4, Icons.calendar_month_outlined, 'Calendar'),
+              _menuItem(5, Icons.contacts_outlined, 'Contacts'),
+
+              // ===== ACCOUNT LABEL =====
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'ACCOUNT',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade600,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+              ),
+
+              _menuItem(
+                6,
+                Icons.notifications_outlined,
+                'Notifications',
+                badge: '3',
+              ),
+              _menuItem(
+                7,
+                Icons.chat_outlined,
+                'Chat',
+                badge: '1',
+              ),
+              _menuItem(
+                8,
+                Icons.settings_outlined,
+                'Settings',
+              ),
+
+              const Spacer(),
+
+              // ===== PROFILE FOOTER =====
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: loadingProfile
+                      ? const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                      : Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: Colors.blue.shade100,
+                        child: Text(
+                          (userName ?? 'U')[0].toUpperCase(),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2563EB),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              userName ?? 'Unknown User',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              userEmail ?? '',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.logout, size: 20),
+                        onPressed: widget.isGuest ? null : _logout,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+
+      // ================= BODY =================
+      body: _buildPage(),
+
+      // ================= BOTTOM NAV =================
+      bottomNavigationBar: CurvedNavigationBar(
+        key: _bottomNavigationKey,
+        backgroundColor: const Color(0xFFF4F6FB),
+        color: const Color(0xFF1E40AF),
+        buttonBackgroundColor: const Color(0xFF2563EB),
+        height: 60,
+        items: const [
+          Icon(Icons.dashboard, size: 30, color: Colors.white),
+          Icon(Icons.list, size: 30, color: Colors.white),
+          Icon(Icons.person, size: 30, color: Colors.white),
+        ],
+        onTap: (index) {
+          setState(() {
+            _page = index;
+            selectedIndex = index;
+          });
+        },
       ),
     );
   }
-}
 
-// ================= DASHBOARD CARD =================
-class _DashboardCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
+  // ================= MENU ITEM =================
+  Widget _menuItem(
+      int index,
+      IconData icon,
+      String title, {
+        String? badge,
+      }) {
+    final bool selected = selectedIndex == index;
 
-  const _DashboardCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: () {},
+      onTap: () {
+        setState(() {
+          selectedIndex = index;
+          _page = index.clamp(0, 2); // safe sync
+        });
+        Navigator.pop(context);
+      },
       child: Container(
-        padding: const EdgeInsets.all(18),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 10,
-              offset: Offset(0, 6),
-            ),
-          ],
+          color: selected ? const Color(0xFFE6F2FF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            CircleAvatar(
-              backgroundColor: color.withOpacity(0.15),
-              child: Icon(icon, color: color),
+            Icon(
+              icon,
+              size: 20,
+              color: selected ? const Color(0xFF2563EB) : Colors.black54,
             ),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontWeight:
+                  selected ? FontWeight.w600 : FontWeight.w500,
+                  color:
+                  selected ? const Color(0xFF2563EB) : Colors.black87,
+                ),
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: const TextStyle(
-                fontSize: 13,
-                color: Colors.black54,
+            if (badge != null)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.orange,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  badge,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-            ),
           ],
         ),
       ),
