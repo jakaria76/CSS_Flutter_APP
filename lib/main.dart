@@ -5,8 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 // PAGES
 import 'onboarding_page.dart';
 import 'welcome_page.dart';
-import 'signup_page.dart';
-import 'login_page.dart';
+import 'pages/account/signup_page.dart';
+import 'pages/account/login_page.dart';
 import 'member_home.dart';
 
 Future<void> main() async {

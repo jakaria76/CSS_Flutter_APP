@@ -1,15 +1,20 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.css">
 
-    <!-- Internet permission -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <application
         android:label="css"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 
-        <!-- ================= MAIN ACTIVITY ================= -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="YOUR_GOOGLE_MAPS_API_KEY"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -20,46 +25,35 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
-            <!-- Flutter normal theme -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
 
-            <!-- Launcher intent -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-
         </activity>
 
-        <!-- ================= SUPABASE AUTH CALLBACK (CRITICAL) ================= -->
-        <!-- DO NOT put this inside MainActivity -->
         <activity
             android:name="io.supabase.flutter.SupabaseAuthActivity"
             android:exported="true">
-
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-
-                <!-- MUST match Supabase mobile deep link -->
                 <data
                     android:scheme="io.supabase.flutter"
                     android:host="login-callback"/>
             </intent-filter>
-
         </activity>
 
-        <!-- Flutter embedding v2 -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
 
     </application>
 
-    <!-- Flutter default text processing -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
