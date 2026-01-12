@@ -257,15 +257,9 @@ class _MemberHomeState extends State<MemberHome> {
                 const SizedBox(height: 16),
 
                 // ===== MENU ITEMS =====
-                // index 0 = Dashboard (Sync with Bottom Nav)
                 _menuItem(0, Icons.grid_view_rounded, 'Dashboard'),
-
-                // index 1 = Blood Donation (Not in Bottom Nav, so separate routing)
                 _menuItem(1, Icons.water_drop_rounded, 'Blood Donation'),
-
-                // index 2 = Profile (Sync with Bottom Nav)
                 _menuItem(2, Icons.manage_accounts_rounded, 'Profile'),
-
                 _menuItem(11, Icons.event_note_rounded, 'Public Event List'),
                 _menuItem(5, Icons.contacts_outlined, 'Contacts'),
 
@@ -387,26 +381,29 @@ class _MemberHomeState extends State<MemberHome> {
   }
 
   Widget _menuItem(int index, IconData icon, String title) {
-    // ড্যাশবোর্ড এবং প্রোফাইল বটম নেভিগেশনের সাথে সিঙ্ক করা
-    // ListPage (index 1 in Bottom Nav) ড্রয়ারে সরাসরি রাখা হয়নি, তাই লজিক ফিক্স করা হয়েছে।
-    final bool isBottomNavSync = (index == 0 || index == 2);
     final bool selected = selectedIndex == index;
 
     return InkWell(
       onTap: () {
         Navigator.pop(context); // Close Drawer
 
-        if (isBottomNavSync) {
-          // Dashboard (0) অথবা Profile (2) হলে বটম বার সিঙ্ক হবে
+        // ================= সংশোধিত লজিক =================
+        // Dashboard (0) এবং Profile (2) বটম বারের সাথে সিঙ্ক হবে
+        if (index == 0 || index == 2) {
           setState(() {
             selectedIndex = index;
             _page = index;
             _bottomNavigationKey.currentState?.setPage(index);
           });
-        } else {
-          // আলাদা পেজে যাওয়ার জন্য রাউটিং লজিক
+        }
+        // Blood Donation বাটন (index 1) - গেস্ট বা মেম্বার যেই হোক, BloodGroupsPage এ যাবে
+        else if (index == 1) {
+          Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const BloodGroupsPage()));
+        }
+        else {
+          // অন্যান্য পেজ রাউটিং লজিক
           Widget? targetPage;
-          if (index == 1) targetPage = const BloodGroupsPage();
           if (index == 9) targetPage = const CreateEventPage();
           if (index == 10) targetPage = const AdminEventsPage();
           if (index == 11) targetPage = const EventsListPage();
