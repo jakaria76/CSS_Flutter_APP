@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "521817945804",
+    "project_id": "css-events",
+    "storage_bucket": "css-events.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:521817945804:android:d35d0d6bc964674a537469",
+        "android_client_info": {
+          "package_name": "com.example.css"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDWVwOt1I0VbhBuxCo-hztOekfHmeeylvM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

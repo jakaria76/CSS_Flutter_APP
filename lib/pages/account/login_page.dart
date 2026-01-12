@@ -56,7 +56,7 @@ class _LoginPageState extends State<LoginPage> {
       if (role == 'admin') {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (_) => const AdminHome()),
+          MaterialPageRoute(builder: (_) => const MemberHome(isGuest: false)),
               (_) => false,
         );
       } else {

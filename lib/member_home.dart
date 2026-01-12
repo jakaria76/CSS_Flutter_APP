@@ -1,14 +1,19 @@
-import 'package:css/pages/Blood/blood_groups_page.dart';
+import 'package:css/pages/events/create_event_page.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 
+// সার্ভিস ইম্পোর্ট
+import 'package:css/services/notification_service.dart';
+
+// পেজ ইম্পোর্টস
 import 'welcome_page.dart';
 import 'dashboard_page.dart';
 import 'list_page.dart';
 import 'pages/Profile/profile_page.dart';
-// Blood Donation পেজটি ইম্পোর্ট করা হলো
-
+import 'package:css/pages/Blood/blood_groups_page.dart';
+import 'package:css/pages/events/events_list_page.dart';
+import 'package:css/pages/events/admin_events_page.dart';
 
 class MemberHome extends StatefulWidget {
   final bool isGuest;
@@ -19,8 +24,8 @@ class MemberHome extends StatefulWidget {
 }
 
 class _MemberHomeState extends State<MemberHome> {
-  int selectedIndex = 0; // drawer
-  int _page = 0; // bottom nav
+  int selectedIndex = 0; // Drawer selection tracking
+  int _page = 0;         // Bottom navigation selection tracking
 
   final GlobalKey<CurvedNavigationBarState> _bottomNavigationKey =
   GlobalKey<CurvedNavigationBarState>();
@@ -33,27 +38,42 @@ class _MemberHomeState extends State<MemberHome> {
   @override
   void initState() {
     super.initState();
+    _initNotifications();
+  }
+
+  // ================= NOTIFICATION & PROFILE INIT =================
+  Future<void> _initNotifications() async {
     if (!widget.isGuest) {
+      await NotificationService.init();
+      await NotificationService.initAndSaveToken();
+      NotificationService.listenForeground();
+      NotificationService.listenClick();
       _loadProfile();
     } else {
-      userName = 'Guest User';
-      userEmail = '';
-      profileImageUrl = null;
-      loadingProfile = false;
+      if (mounted) {
+        setState(() {
+          userName = 'Guest User';
+          userEmail = 'Guest';
+          profileImageUrl = null;
+          loadingProfile = false;
+        });
+      }
     }
   }
 
-  // ================= LOAD PROFILE =================
+  // ================= LOAD PROFILE FROM SUPABASE =================
   Future<void> _loadProfile() async {
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
 
     if (user == null) {
-      setState(() {
-        loadingProfile = false;
-        userName = 'User';
-        userEmail = '';
-      });
+      if (mounted) {
+        setState(() {
+          loadingProfile = false;
+          userName = 'User';
+          userEmail = '';
+        });
+      }
       return;
     }
 
@@ -64,22 +84,64 @@ class _MemberHomeState extends State<MemberHome> {
           .eq('id', user.id)
           .maybeSingle();
 
-      setState(() {
-        userName = data?['full_name'] ?? user.userMetadata?['full_name'] ?? 'User';
-        userEmail = user.email;
-        profileImageUrl = data?['profile_image_url'];
-        loadingProfile = false;
-      });
+      if (mounted) {
+        setState(() {
+          userName = data?['full_name'] ?? user.userMetadata?['full_name'] ?? 'User';
+          userEmail = user.email;
+          profileImageUrl = data?['profile_image_url'];
+          loadingProfile = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        userName = user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? 'User';
-        userEmail = user.email;
-        loadingProfile = false;
-      });
+      if (mounted) {
+        setState(() {
+          userName = user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? 'User';
+          userEmail = user.email;
+          loadingProfile = false;
+        });
+      }
     }
   }
 
-  // ================= LOGOUT =================
+  // ================= LOGOUT CONFIRMATION DIALOG =================
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF162E38),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Logout Confirmation',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            'Are you sure you want to logout from your account?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.cyanAccent)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                _logout();
+              },
+              child: const Text('Logout', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ================= LOGOUT FUNCTION =================
   Future<void> _logout() async {
     await Supabase.instance.client.auth.signOut();
     if (mounted) {
@@ -91,6 +153,7 @@ class _MemberHomeState extends State<MemberHome> {
     }
   }
 
+  // ================= MAIN PAGES =================
   Widget _buildPage() {
     return IndexedStack(
       index: _page,
@@ -151,6 +214,8 @@ class _MemberHomeState extends State<MemberHome> {
                           child: Image.asset(
                             'assets/images/csslogo.jpg',
                             fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                            const Icon(Icons.business, color: Colors.white),
                           ),
                         ),
                       ),
@@ -191,37 +256,36 @@ class _MemberHomeState extends State<MemberHome> {
                 ),
                 const SizedBox(height: 16),
 
-                // ===== MAIN MENU ITEMS =====
+                // ===== MENU ITEMS =====
+                // index 0 = Dashboard (Sync with Bottom Nav)
                 _menuItem(0, Icons.grid_view_rounded, 'Dashboard'),
 
-                // Blood Donation বাটনের index ১ রাখা হয়েছে
+                // index 1 = Blood Donation (Not in Bottom Nav, so separate routing)
                 _menuItem(1, Icons.water_drop_rounded, 'Blood Donation'),
 
+                // index 2 = Profile (Sync with Bottom Nav)
                 _menuItem(2, Icons.manage_accounts_rounded, 'Profile'),
-                _menuItem(3, Icons.campaign_outlined, 'Campaigns'),
-                _menuItem(4, Icons.calendar_month_outlined, 'Calendar'),
+
+                _menuItem(11, Icons.event_note_rounded, 'Public Event List'),
                 _menuItem(5, Icons.contacts_outlined, 'Contacts'),
 
-                // ===== ACCOUNT LABEL =====
                 const Padding(
                   padding: EdgeInsets.fromLTRB(28, 32, 24, 16),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'ACCOUNT MANAGEMENT',
+                      'EVENT MANAGEMENT',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w900,
-                        color: Colors.white,
+                        color: Colors.cyanAccent,
                         letterSpacing: 1.5,
                       ),
                     ),
                   ),
                 ),
-
-                _menuItem(6, Icons.notifications_outlined, 'Notifications', badge: '3'),
-                _menuItem(7, Icons.chat_outlined, 'Chat', badge: '1'),
-                _menuItem(8, Icons.settings_outlined, 'Settings'),
+                _menuItem(10, Icons.admin_panel_settings_rounded, 'Manage Events (Admin)'),
+                _menuItem(9, Icons.add_circle_outline_rounded, 'Create New Event'),
 
                 const Spacer(),
 
@@ -238,81 +302,55 @@ class _MemberHomeState extends State<MemberHome> {
                     child: loadingProfile
                         ? const Center(
                       child: SizedBox(
-                        height: 20, width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.cyanAccent),
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.cyanAccent),
                       ),
                     )
                         : Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(1.5),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 1.5),
-                          ),
-                          child: CircleAvatar(
-                            radius: 20,
-                            backgroundColor: const Color(0xFF1A2A3A),
-                            backgroundImage: profileImageUrl != null
-                                ? NetworkImage(profileImageUrl!)
-                                : null,
-                            child: profileImageUrl == null
-                                ? Text(
-                              (userName ?? 'U')[0].toUpperCase(),
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: const Color(0xFF1A2A3A),
+                          backgroundImage: profileImageUrl != null
+                              ? NetworkImage(profileImageUrl!)
+                              : null,
+                          child: profileImageUrl == null
+                              ? Text((userName ?? 'U')[0].toUpperCase(),
                               style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                                fontSize: 16,
-                              ),
-                            )
-                                : null,
-                          ),
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold))
+                              : null,
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                userName ?? 'Unknown User',
+                                userName ?? 'Unknown',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  letterSpacing: 0.3,
-                                ),
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14),
                               ),
-                              const SizedBox(height: 3),
                               Text(
                                 (userEmail ?? '').toLowerCase(),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                  letterSpacing: 0.2,
-                                ),
+                                    color: Colors.white70, fontSize: 11),
                               ),
                             ],
                           ),
                         ),
-                        Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: widget.isGuest ? null : _logout,
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              child: const Icon(
-                                Icons.logout_rounded,
-                                color: Colors.redAccent,
-                                size: 24,
-                              ),
-                            ),
-                          ),
+                        IconButton(
+                          icon: const Icon(Icons.logout_rounded,
+                              color: Colors.redAccent, size: 22),
+                          onPressed: widget.isGuest ? null : _showLogoutDialog,
                         ),
                       ],
                     ),
@@ -332,6 +370,7 @@ class _MemberHomeState extends State<MemberHome> {
         color: const Color(0xFF1E40AF),
         buttonBackgroundColor: const Color(0xFF2563EB),
         height: 60,
+        index: _page,
         items: const [
           Icon(Icons.dashboard, size: 30, color: Colors.white),
           Icon(Icons.list, size: 30, color: Colors.white),
@@ -347,27 +386,36 @@ class _MemberHomeState extends State<MemberHome> {
     );
   }
 
-  // ================= MENU ITEM =================
-  Widget _menuItem(int index, IconData icon, String title, {String? badge}) {
+  Widget _menuItem(int index, IconData icon, String title) {
+    // ড্যাশবোর্ড এবং প্রোফাইল বটম নেভিগেশনের সাথে সিঙ্ক করা
+    // ListPage (index 1 in Bottom Nav) ড্রয়ারে সরাসরি রাখা হয়নি, তাই লজিক ফিক্স করা হয়েছে।
+    final bool isBottomNavSync = (index == 0 || index == 2);
     final bool selected = selectedIndex == index;
 
     return InkWell(
       onTap: () {
-        // ১. ড্রয়ার বন্ধ করা
-        Navigator.pop(context);
+        Navigator.pop(context); // Close Drawer
 
-        // ২. Blood Donation বাটন (Index 1) এর জন্য নেভিগেশন
-        if (index == 1) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const BloodGroupsPage()),
-          );
-        } else {
-          // অন্যান্য মেনু আইটেমের জন্য (যেমন ড্যাশবোর্ড বা প্রোফাইল)
+        if (isBottomNavSync) {
+          // Dashboard (0) অথবা Profile (2) হলে বটম বার সিঙ্ক হবে
           setState(() {
             selectedIndex = index;
-            _page = index.clamp(0, 2); // বটম ন্যাভিগেশনের সাথে সিঙ্ক করার জন্য
+            _page = index;
+            _bottomNavigationKey.currentState?.setPage(index);
           });
+        } else {
+          // আলাদা পেজে যাওয়ার জন্য রাউটিং লজিক
+          Widget? targetPage;
+          if (index == 1) targetPage = const BloodGroupsPage();
+          if (index == 9) targetPage = const CreateEventPage();
+          if (index == 10) targetPage = const AdminEventsPage();
+          if (index == 11) targetPage = const EventsListPage();
+
+          if (targetPage != null) {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => targetPage!));
+          } else {
+            setState(() => selectedIndex = index);
+          }
         }
       },
       child: Container(
@@ -379,37 +427,18 @@ class _MemberHomeState extends State<MemberHome> {
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 20,
-              color: selected ? Colors.cyanAccent : Colors.white70,
-            ),
+            Icon(icon, size: 20, color: selected ? Colors.cyanAccent : Colors.white70),
             const SizedBox(width: 14),
             Expanded(
               child: Text(
                 title,
                 style: TextStyle(
+                  fontSize: 14,
                   fontWeight: selected ? FontWeight.w900 : FontWeight.w500,
                   color: Colors.white,
                 ),
               ),
             ),
-            if (badge != null)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.orange,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  badge,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
           ],
         ),
       ),
