@@ -284,6 +284,8 @@ class _AboutPageState extends State<AboutPage> with TickerProviderStateMixin {
         if (contact != null)
           SliverToBoxAdapter(child: _buildContactSection()),
 
+
+
         const SliverToBoxAdapter(child: SizedBox(height: 120)),
       ],
     );

@@ -1,11 +1,15 @@
 import 'dart:ui';
 import 'package:css/pages/About/ManageAboutPage.dart';
 import 'package:css/pages/CommitteePage/manage_committee_page.dart';
+import 'package:css/pages/videos/video_management_page.dart';
+import 'package:css/pages/videos/videos_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
+import 'package:css/pages/Gallery/gallery_page.dart';
+import 'package:css/pages/Gallery/gallery_management_page.dart';
 
 // আপনার নতুন তৈরি করা Committee Page ইম্পোর্ট করুন (পাথ ঠিক করে নিন)
 import 'package:css/pages/CommitteePage/committee_page.dart';
@@ -87,6 +91,8 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
       if (mounted) setState(() => loadingProfile = false);
     }
   }
+
+
 
   void _showLogoutDialog() {
     showDialog(
@@ -199,6 +205,9 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
                       _drawerButton(5, Icons.notifications_active_rounded, 'Notices', Colors.pinkAccent),
                       _drawerButton(6, Icons.people_alt_rounded, 'Committee Members', Colors.indigoAccent),
                       _drawerButton(7, Icons.info_outline_rounded, 'About CSS', Colors.blueAccent),
+                      _drawerButton(18, Icons.photo_library_rounded, 'Gallery', Colors.purpleAccent),
+                      _drawerButton(20, Icons.play_circle_rounded, 'Videos', Colors.redAccent),
+
 
                       const SizedBox(height: 25),
                       _sectionLabel('ADMIN PANEL'),
@@ -207,6 +216,8 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
                       _drawerButton(10, Icons.edit_note_rounded, 'Manage About', Colors.amberAccent),
                       _drawerButton(11, Icons.settings_suggest_rounded, 'Manage Events', Colors.tealAccent),
                       _drawerButton(12, Icons.add_box_rounded, 'Create Event', Colors.lightGreenAccent),
+                      _drawerButton(19, Icons.photo_album_rounded, 'Manage Gallery', Colors.pinkAccent),
+                      _drawerButton(21, Icons.video_settings_rounded, 'Video Management', Colors.deepOrange),
                     ],
                   ),
                 ),
@@ -418,6 +429,10 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
           case 10: nextRoute = const ManageAboutPage(); break;
           case 11: nextRoute = const AdminEventsPage(); break;
           case 12: nextRoute = const CreateEventPage(); break;
+          case 18: nextRoute = const GalleryPage(); break;
+          case 19: nextRoute = const GalleryManagementPage(); break;
+          case 20: nextRoute = const VideosPage(); break;
+          case 21: nextRoute = const VideoManagementPage(); break;
           default: return;
         }
 
