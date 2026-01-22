@@ -70,26 +70,32 @@ class _EventsListPageState extends State<EventsListPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+
+        // কাস্টম ব্যাক বাটন যোগ করা হয়েছে
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05), // হালকা গ্লাস ইফেক্ট
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.cyanAccent, size: 18),
+          ),
+          onPressed: () => Navigator.pop(context), // পেজটি বন্ধ করে আগের পেজে যাবে
+        ),
+
         title: const Text(
           'CSS EVENTS',
           style: TextStyle(
-            color: Colors.white,
             fontWeight: FontWeight.w900,
             letterSpacing: 2,
-            fontSize: 18,
+            color: Colors.cyanAccent,
           ),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        systemOverlayStyle: SystemUiOverlayStyle.light,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Colors.white,
-            size: 20,
-          ),
-          onPressed: () => Navigator.pop(context),
         ),
       ),
       body: Container(

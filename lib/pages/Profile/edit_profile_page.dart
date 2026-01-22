@@ -153,11 +153,9 @@ class _EditProfilePageState extends State<EditProfilePage> with SingleTickerProv
 
   String _fmtDate(DateTime? d) => d == null ? '' : d.toIso8601String().split('T')[0];
 
-  // ল্যাটিটিউড এবং লঙ্গিটিউড থেকে DMS ফরম্যাট তৈরির ফাংশন
   String _convertToDMS(double lat, double lng) {
     String latDir = lat >= 0 ? 'N' : 'S';
     String lngDir = lng >= 0 ? 'E' : 'W';
-
     String format(double val) {
       val = val.abs();
       int d = val.floor();
@@ -165,7 +163,6 @@ class _EditProfilePageState extends State<EditProfilePage> with SingleTickerProv
       double s = (val - d - m / 60) * 3600;
       return "${d}°${m}'${s.toStringAsFixed(1)}\"";
     }
-
     return "${format(lat)}$latDir, ${format(lng)}$lngDir";
   }
 
@@ -203,7 +200,6 @@ class _EditProfilePageState extends State<EditProfilePage> with SingleTickerProv
       ];
       latCtrl.text = pos.latitude.toStringAsFixed(6);
       lngCtrl.text = pos.longitude.toStringAsFixed(6);
-      // এখানে অ্যাড্রেস খোঁজার পরিবর্তে সরাসরি DMS জেনারেট করা হচ্ছে
       addressCtrl.text = _convertToDMS(pos.latitude, pos.longitude);
     });
     _mapController.move(pos, 15.0);
@@ -556,6 +552,7 @@ class _EditProfilePageState extends State<EditProfilePage> with SingleTickerProv
     setState(() => _saving = true);
     final p = widget.profile;
 
+    // Mapping values from controllers to model
     p.fullName = fullNameCtrl.text;
     p.fullNameBn = fullNameBnCtrl.text;
     p.gender = _selectedGender;
@@ -592,19 +589,29 @@ class _EditProfilePageState extends State<EditProfilePage> with SingleTickerProv
     p.hobbies = hobbiesCtrl.text;
     p.facebook = fbUserCtrl.text;
     p.portfolioWebsite = portfolioCtrl.text;
-
     p.latitude = double.tryParse(latCtrl.text);
     p.longitude = double.tryParse(lngCtrl.text);
     p.locationDms = addressCtrl.text;
-
     p.lastUpdatedDate = DateTime.now();
 
     try {
       if (_imageBytes != null) {
+        // নতুন ইমেজ আপলোড করার সময় পাথের শেষে টাইমস্ট্যাম্প যোগ করা হয়েছে যেন ক্যাশ সমস্যা না হয়
+        final String timestamp = DateTime.now().millisecondsSinceEpoch.toString();
         final path = 'profiles/${p.id}.jpg';
-        await Supabase.instance.client.storage.from('profile-images').uploadBinary(path, _imageBytes!, fileOptions: const FileOptions(upsert: true));
-        p.profileImageUrl = Supabase.instance.client.storage.from('profile-images').getPublicUrl(path);
+
+        // আপলোড
+        await Supabase.instance.client.storage.from('profile-images').uploadBinary(
+            path,
+            _imageBytes!,
+            fileOptions: const FileOptions(upsert: true)
+        );
+
+        // পাবলিক ইউআরএল নেওয়ার সময় শেষে ভেরিয়েবল যোগ করা হয়েছে ক্যাশ বাইপাস করার জন্য
+        final baseUrl = Supabase.instance.client.storage.from('profile-images').getPublicUrl(path);
+        p.profileImageUrl = "$baseUrl?v=$timestamp";
       }
+
       await _service.saveProfile(p);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {

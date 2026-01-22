@@ -85,18 +85,47 @@ class _AdminEventsPageState extends State<AdminEventsPage> {
       extendBodyBehindAppBar: true,
       backgroundColor: const Color(0xFF0F2027),
       appBar: AppBar(
-        title: const Text('MANAGE EVENTS',
-            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 18)
-        ),
-        centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
         systemOverlayStyle: SystemUiOverlayStyle.light,
+
+        // ১. কাস্টম ব্যাক বাটন (গ্লাস ইফেক্টসহ)
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Colors.cyanAccent,
+              size: 18,
+            ),
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
+
+        // ২. টাইটেল ডিজাইন
+        title: const Text(
+          'MANAGE EVENTS',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2,
+            fontSize: 18,
+            color: Colors.cyanAccent,
+          ),
+        ),
+
+        // ৩. রিফ্রেশ অ্যাকশন বাটন
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.cyanAccent),
-            onPressed: fetchEvents,
+            icon: const Icon(Icons.refresh_rounded, color: Colors.cyanAccent),
+            onPressed: fetchEvents, // আপনার ইভেন্ট লোড করার ফাংশন
           ),
+          const SizedBox(width: 8), // ডানপাশে সামান্য গ্যাপ দেওয়ার জন্য
         ],
       ),
       body: Container(

@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../widgets/registration_tile.dart';
+import '../../../widgets/registration_tile.dart';
 
 class EventRegistrationsPage extends StatefulWidget {
   final int eventId;

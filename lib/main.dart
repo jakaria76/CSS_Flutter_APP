@@ -5,9 +5,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 // SERVICES
-import 'package:css/services/notification_service.dart'; // পাথ নিশ্চিত করুন
+import 'package:css/services/notification_service.dart';
 
 // PAGES
 import 'onboarding_page.dart';
@@ -20,7 +21,7 @@ import 'member_home.dart';
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
 FlutterLocalNotificationsPlugin();
 
-// 🔔 Android notification channel (MUST match backend channel_id)
+// 🔔 Android notification channel
 const AndroidNotificationChannel eventChannel = AndroidNotificationChannel(
   'events',
   'Event Notifications',
@@ -31,21 +32,28 @@ const AndroidNotificationChannel eventChannel = AndroidNotificationChannel(
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ================= BENGALI LOCALE INITIALIZATION =================
+  try {
+    await initializeDateFormatting('bn', null);
+    debugPrint('✅ Bengali locale initialized successfully');
+  } catch (e) {
+    debugPrint('⚠️ Bengali locale initialization failed: $e');
+    // Continue anyway with default locale
+  }
+
   // ================= FIREBASE & NOTIFICATION INIT =================
   if (!kIsWeb) {
     await Firebase.initializeApp();
 
-    // 1️⃣ Initialize local notifications via service
     await NotificationService.init();
 
-    // 2️⃣ Create Android notification channel (For fallback or local triggers)
     final androidPlugin =
     flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.createNotificationChannel(eventChannel);
 
-    // 3️⃣ Background message handler (Linking to Service)
-    FirebaseMessaging.onBackgroundMessage(NotificationService.backgroundHandler);
+    FirebaseMessaging.onBackgroundMessage(
+        NotificationService.backgroundHandler);
   }
 
   // ================= SUPABASE INIT =================
@@ -77,10 +85,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-
-      // কন্ডিশনাল ইনিশিয়াল রুট
-      initialRoute: seenOnboarding ? '/welcome' : '/onboarding',
-
+      home: _decideStartPage(),
       routes: {
         '/onboarding': (_) => const OnboardingPage(),
         '/welcome': (_) => const WelcomePage(),
@@ -92,5 +97,23 @@ class MyApp extends StatelessWidget {
         },
       },
     );
+  }
+
+  /// 🔐 Facebook-style startup decision
+  Widget _decideStartPage() {
+    final session = Supabase.instance.client.auth.currentSession;
+
+    // 1️⃣ Onboarding first (only once)
+    if (!seenOnboarding) {
+      return const OnboardingPage();
+    }
+
+    // 2️⃣ If session exists → auto login
+    if (session != null) {
+      return const MemberHome(isGuest: false);
+    }
+
+    // 3️⃣ No session → welcome / login
+    return const WelcomePage();
   }
 }

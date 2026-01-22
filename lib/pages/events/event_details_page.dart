@@ -6,7 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:css/pages/events/event_register_page.dart';
-import 'package:css/registrations/event_registrations_page.dart';
+import 'package:css/pages/events/event_registrations_page.dart';
 
 class EventDetailsPage extends StatefulWidget {
   final int eventId;

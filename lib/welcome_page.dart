@@ -1,12 +1,25 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class WelcomePage extends StatelessWidget {
   const WelcomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // 🔐 Facebook-style guard:
+    // Logged-in user কখনো Welcome page দেখবে না
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/home',
+              (_) => false,
+        );
+      });
+    }
+
     return Scaffold(
       extendBodyBehindAppBar: true,
       body: Container(
@@ -16,7 +29,11 @@ class WelcomePage extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
+            colors: [
+              Color(0xFF0F2027),
+              Color(0xFF203A43),
+              Color(0xFF2C5364),
+            ],
           ),
         ),
         child: Stack(
@@ -25,12 +42,14 @@ class WelcomePage extends StatelessWidget {
             Positioned(
               top: -50,
               left: -50,
-              child: _buildBlurCircle(200, Colors.cyanAccent.withOpacity(0.1)),
+              child:
+              _buildBlurCircle(200, Colors.cyanAccent.withOpacity(0.1)),
             ),
             Positioned(
               bottom: 100,
               right: -30,
-              child: _buildBlurCircle(150, Colors.redAccent.withOpacity(0.05)),
+              child:
+              _buildBlurCircle(150, Colors.redAccent.withOpacity(0.05)),
             ),
 
             SafeArea(
@@ -39,12 +58,11 @@ class WelcomePage extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    /// --- LOGO SECTION ---
+                    // LOGO
                     _buildAnimatedLogo(),
-
                     const SizedBox(height: 40),
 
-                    /// --- TEXT SECTION ---
+                    // TITLE
                     const Text(
                       'CONSCIOUS\nSTUDENT SOCIETY',
                       textAlign: TextAlign.center,
@@ -70,52 +88,36 @@ class WelcomePage extends StatelessWidget {
 
                     const SizedBox(height: 60),
 
-                    /// --- GLASS CARD CONTAINER ---
+                    // GLASS CARD
                     ClipRRect(
                       borderRadius: BorderRadius.circular(30),
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
                         child: Container(
-                          padding: const EdgeInsets.all(30),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 40, horizontal: 30),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.05),
                             borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: Colors.white.withOpacity(0.1)),
+                            border: Border.all(
+                                color: Colors.white.withOpacity(0.1)),
                           ),
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              /// LOGIN BUTTON
-                              _buildPrimaryButton(
+                              // LOGIN
+                              _primaryButton(
                                 context,
                                 'LOG IN',
                                     () => Navigator.pushNamed(context, '/login'),
                               ),
+                              const SizedBox(height: 20),
 
-                              const SizedBox(height: 16),
-
-                              /// SIGN UP BUTTON
-                              _buildSecondaryButton(
+                              // SIGNUP
+                              _secondaryButton(
                                 context,
                                 'CREATE ACCOUNT',
                                     () => Navigator.pushNamed(context, '/signup'),
-                              ),
-
-                              const SizedBox(height: 25),
-
-                              /// GUEST MODE
-                              GestureDetector(
-                                onTap: () => Navigator.pushNamedAndRemoveUntil(
-                                    context, '/home', (_) => false),
-                                child: const Text(
-                                  'Continue as Guest',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white54,
-                                    letterSpacing: 1,
-                                    decoration: TextDecoration.underline,
-                                  ),
-                                ),
                               ),
                             ],
                           ),
@@ -132,13 +134,14 @@ class WelcomePage extends StatelessWidget {
     );
   }
 
-  // --- UI Helper Widgets ---
+  // ================= UI HELPERS =================
 
   Widget _buildBlurCircle(double size, Color color) {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      decoration:
+      BoxDecoration(shape: BoxShape.circle, color: color),
     );
   }
 
@@ -165,7 +168,8 @@ class WelcomePage extends StatelessWidget {
     );
   }
 
-  Widget _buildPrimaryButton(BuildContext context, String text, VoidCallback onTap) {
+  Widget _primaryButton(
+      BuildContext context, String text, VoidCallback onTap) {
     return SizedBox(
       width: double.infinity,
       height: 56,
@@ -173,36 +177,41 @@ class WelcomePage extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.cyanAccent,
           foregroundColor: const Color(0xFF0F2027),
-          elevation: 10,
-          shadowColor: Colors.cyanAccent.withOpacity(0.3),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 8,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
         ),
         onPressed: onTap,
         child: Text(
           text,
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 1),
+          style: const TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+              letterSpacing: 1.5),
         ),
       ),
     );
   }
 
-  Widget _buildSecondaryButton(BuildContext context, String text, VoidCallback onTap) {
+  Widget _secondaryButton(
+      BuildContext context, String text, VoidCallback onTap) {
     return SizedBox(
       width: double.infinity,
       height: 56,
       child: OutlinedButton(
         style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Colors.white24, width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          side: const BorderSide(color: Colors.white38, width: 1.5),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
         ),
         onPressed: onTap,
         child: Text(
           text,
           style: const TextStyle(
             fontWeight: FontWeight.w900,
-            fontSize: 15,
+            fontSize: 16,
             color: Colors.white,
-            letterSpacing: 1,
+            letterSpacing: 1.5,
           ),
         ),
       ),

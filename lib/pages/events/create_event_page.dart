@@ -189,11 +189,33 @@ class _CreateEventPageState extends State<CreateEventPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('CREATE EVENT', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2)),
-        centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
         systemOverlayStyle: SystemUiOverlayStyle.light,
+
+        // কাস্টম ব্যাক বাটন যোগ করা হয়েছে
+        leading: IconButton(
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05), // হালকা গ্লাস ইফেক্ট
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.cyanAccent, size: 18),
+          ),
+          onPressed: () => Navigator.pop(context), // পেজটি বন্ধ করে আগের পেজে যাবে
+        ),
+
+        title: const Text(
+          'CREATE EVENT',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            letterSpacing: 2,
+            color: Colors.cyanAccent,
+          ),
+        ),
       ),
       body: Container(
         width: double.infinity,
