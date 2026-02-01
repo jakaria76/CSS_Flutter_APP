@@ -150,7 +150,7 @@ class _EventRegisterPageState extends State<EventRegisterPage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('REGISTRATION', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 18)),
+        title: const Text('REGISTRATION ', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 18)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,

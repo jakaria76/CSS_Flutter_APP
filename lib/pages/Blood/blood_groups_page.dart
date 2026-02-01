@@ -95,16 +95,8 @@ class _BloodGroupsPageState extends State<BloodGroupsPage> with TickerProviderSt
         elevation: 0,
         leading: Container(
           margin: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0F2027), Color(0xFF2C5364)],
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
-            onPressed: () => Navigator.pop(context),
-          ),
+
+
         ),
         title: Row(
           mainAxisSize: MainAxisSize.min,

@@ -46,7 +46,7 @@ class _BannerSliderState extends State<BannerSlider> {
 
     return Container(
       // ওপর থেকে কিছুটা নিচে নামানোর জন্য প্যাডিং
-      padding: const EdgeInsets.only(top: 60, bottom: 0),
+      padding: const EdgeInsets.only(top: 70, bottom: 0),
       child: Stack(
         alignment: Alignment.bottomCenter,
         children: [

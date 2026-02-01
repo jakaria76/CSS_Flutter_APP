@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'dart:ui';
-import 'package:flutter/foundation.dart'; // প্ল্যাটফর্ম চেক করার জন্য (kIsWeb)
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 
 class CreateEventPage extends StatefulWidget {
   const CreateEventPage({super.key});
@@ -26,6 +29,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
   final latCtrl = TextEditingController();
   final lngCtrl = TextEditingController();
   final priceCtrl = TextEditingController(text: '0');
+  final locationDmsCtrl = TextEditingController();
 
   DateTime? startDate;
   DateTime? endDate;
@@ -37,6 +41,18 @@ class _CreateEventPageState extends State<CreateEventPage> {
   XFile? bannerImage;
   final List<XFile> galleryImages = [];
 
+  // Map Variables
+  final MapController _mapController = MapController();
+  LatLng _selectedLocation = const LatLng(23.8103, 90.4125); // Default: Dhaka
+  List<Marker> _markers = [];
+  bool _fetchingLocation = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _setInitialMarker(_selectedLocation);
+  }
+
   @override
   void dispose() {
     titleCtrl.dispose();
@@ -47,7 +63,69 @@ class _CreateEventPageState extends State<CreateEventPage> {
     latCtrl.dispose();
     lngCtrl.dispose();
     priceCtrl.dispose();
+    locationDmsCtrl.dispose();
     super.dispose();
+  }
+
+  // ================= MAP FUNCTIONS =================
+
+  void _setInitialMarker(LatLng pos) {
+    _markers = [
+      Marker(
+        point: pos,
+        width: 80,
+        height: 80,
+        child: const Icon(Icons.location_on, size: 50, color: Colors.redAccent),
+      )
+    ];
+    latCtrl.text = pos.latitude.toStringAsFixed(6);
+    lngCtrl.text = pos.longitude.toStringAsFixed(6);
+    locationDmsCtrl.text = _convertToDMS(pos.latitude, pos.longitude);
+  }
+
+  String _convertToDMS(double lat, double lng) {
+    String latDir = lat >= 0 ? 'N' : 'S';
+    String lngDir = lng >= 0 ? 'E' : 'W';
+    String format(double val) {
+      val = val.abs();
+      int d = val.floor();
+      int m = ((val - d) * 60).floor();
+      double s = (val - d - m / 60) * 3600;
+      return "${d}°${m}'${s.toStringAsFixed(1)}\"";
+    }
+    return "${format(lat)}$latDir, ${format(lng)}$lngDir";
+  }
+
+  Future<void> _handleMyLocation() async {
+    setState(() => _fetchingLocation = true);
+    try {
+      Position pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high);
+      LatLng myLoc = LatLng(pos.latitude, pos.longitude);
+      await _updateMarker(myLoc);
+    } catch (e) {
+      _showMsg('Location error: $e');
+    } finally {
+      setState(() => _fetchingLocation = false);
+    }
+  }
+
+  Future<void> _updateMarker(LatLng pos) async {
+    setState(() {
+      _selectedLocation = pos;
+      _markers = [
+        Marker(
+          point: pos,
+          width: 80,
+          height: 80,
+          child: const Icon(Icons.location_on, size: 50, color: Colors.redAccent),
+        )
+      ];
+      latCtrl.text = pos.latitude.toStringAsFixed(6);
+      lngCtrl.text = pos.longitude.toStringAsFixed(6);
+      locationDmsCtrl.text = _convertToDMS(pos.latitude, pos.longitude);
+    });
+    _mapController.move(pos, 15.0);
   }
 
   // ================= IMAGE PICKERS =================
@@ -83,9 +161,12 @@ class _CreateEventPageState extends State<CreateEventPage> {
         final bytes = await img.readAsBytes();
         final path = '$eventId/${DateTime.now().millisecondsSinceEpoch}.jpg';
         await supabase.storage.from('event-gallery').uploadBinary(path, bytes,
-            fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'));
+            fileOptions:
+            const FileOptions(upsert: true, contentType: 'image/jpeg'));
         final url = supabase.storage.from('event-gallery').getPublicUrl(path);
-        await supabase.from('event_images').insert({'event_id': eventId, 'image_url': url});
+        await supabase
+            .from('event_images')
+            .insert({'event_id': eventId, 'image_url': url});
       } catch (_) {}
     }
   }
@@ -102,7 +183,7 @@ class _CreateEventPageState extends State<CreateEventPage> {
     try {
       final bannerUrl = await uploadBanner();
 
-      // 1️⃣ Event insert (সিলেক্ট করে ইভেন্ট অবজেক্টটি নেওয়া হচ্ছে)
+      // Event insert
       final event = await supabase.from('events').insert({
         'title': titleCtrl.text.trim(),
         'tag': tagCtrl.text.trim(),
@@ -119,10 +200,10 @@ class _CreateEventPageState extends State<CreateEventPage> {
         'banner_url': bannerUrl,
       }).select().single();
 
-      // গ্যালারি আপলোড
+      // Gallery upload
       await uploadGallery(event['id']);
 
-      // 2️⃣ 🔔 Notification trigger (Edge Function-এ ডাটা পাঠানো হচ্ছে)
+      // Notification trigger
       await supabase.functions.invoke(
         'send_event_notification',
         body: {
@@ -136,7 +217,6 @@ class _CreateEventPageState extends State<CreateEventPage> {
       if (!mounted) return;
       Navigator.pop(context);
       _showMsg('Event created & notification sent');
-
     } catch (e) {
       _showMsg('Failed to create event: $e');
     } finally {
@@ -154,11 +234,16 @@ class _CreateEventPageState extends State<CreateEventPage> {
       initialDate: DateTime.now(),
     );
     if (date == null) return;
-    final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+    final time =
+    await showTimePicker(context: context, initialTime: TimeOfDay.now());
     if (time == null) return;
     final dt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
     setState(() {
-      if (isStart) startDate = dt; else endDate = dt;
+      if (isStart) {
+        startDate = dt;
+      } else {
+        endDate = dt;
+      }
     });
   }
 
@@ -175,12 +260,20 @@ class _CreateEventPageState extends State<CreateEventPage> {
   InputDecoration _inputStyle(String label, IconData icon) {
     return InputDecoration(
       labelText: label.toUpperCase(),
-      labelStyle: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+      labelStyle: const TextStyle(
+          color: Colors.white38,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2),
       prefixIcon: Icon(icon, color: Colors.cyanAccent.withOpacity(0.6), size: 20),
       filled: true,
       fillColor: Colors.black.withOpacity(0.2),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withOpacity(0.05))),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.cyanAccent, width: 1.5)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.05))),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Colors.cyanAccent, width: 1.5)),
     );
   }
 
@@ -193,21 +286,19 @@ class _CreateEventPageState extends State<CreateEventPage> {
         elevation: 0,
         centerTitle: true,
         systemOverlayStyle: SystemUiOverlayStyle.light,
-
-        // কাস্টম ব্যাক বাটন যোগ করা হয়েছে
         leading: IconButton(
           icon: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05), // হালকা গ্লাস ইফেক্ট
+              color: Colors.white.withOpacity(0.05),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white.withOpacity(0.1)),
             ),
-            child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.cyanAccent, size: 18),
+            child: const Icon(Icons.arrow_back_ios_new_rounded,
+                color: Colors.cyanAccent, size: 18),
           ),
-          onPressed: () => Navigator.pop(context), // পেজটি বন্ধ করে আগের পেজে যাবে
+          onPressed: () => Navigator.pop(context),
         ),
-
         title: const Text(
           'CREATE EVENT',
           style: TextStyle(
@@ -229,10 +320,14 @@ class _CreateEventPageState extends State<CreateEventPage> {
         ),
         child: Stack(
           children: [
-            Positioned(top: 100, left: -50, child: _blurCircle(150, Colors.cyanAccent.withOpacity(0.1))),
+            Positioned(
+                top: 100,
+                left: -50,
+                child: _blurCircle(150, Colors.cyanAccent.withOpacity(0.1))),
             SafeArea(
               child: loading
-                  ? const Center(child: CircularProgressIndicator(color: Colors.cyanAccent))
+                  ? const Center(
+                  child: CircularProgressIndicator(color: Colors.cyanAccent))
                   : SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
                 physics: const BouncingScrollPhysics(),
@@ -246,35 +341,133 @@ class _CreateEventPageState extends State<CreateEventPage> {
                       const SizedBox(height: 25),
                       _buildSectionTitle('BASIC INFORMATION'),
                       _buildGlassCard([
-                        TextFormField(controller: titleCtrl, style: const TextStyle(color: Colors.white), decoration: _inputStyle('Event Title', Icons.title), validator: (v) => v!.isEmpty ? 'Required' : null),
+                        TextFormField(
+                            controller: titleCtrl,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: _inputStyle('Event Title', Icons.title),
+                            validator: (v) =>
+                            v!.isEmpty ? 'Required' : null),
                         const SizedBox(height: 15),
-                        TextFormField(controller: tagCtrl, style: const TextStyle(color: Colors.white), decoration: _inputStyle('Category Tag', Icons.label_outline)),
+                        TextFormField(
+                            controller: tagCtrl,
+                            style: const TextStyle(color: Colors.white),
+                            decoration:
+                            _inputStyle('Category Tag', Icons.label_outline)),
                         const SizedBox(height: 15),
-                        TextFormField(controller: priceCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _inputStyle('Ticket Price (৳)', Icons.payments_outlined)),
+                        TextFormField(
+                            controller: priceCtrl,
+                            keyboardType: TextInputType.number,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: _inputStyle(
+                                'Ticket Price (৳)', Icons.payments_outlined)),
                       ]),
                       const SizedBox(height: 25),
                       _buildSectionTitle('DESCRIPTIONS'),
                       _buildGlassCard([
-                        TextFormField(controller: shortDescCtrl, style: const TextStyle(color: Colors.white), decoration: _inputStyle('Short Summary', Icons.short_text)),
+                        TextFormField(
+                            controller: shortDescCtrl,
+                            style: const TextStyle(color: Colors.white),
+                            decoration:
+                            _inputStyle('Short Summary', Icons.short_text)),
                         const SizedBox(height: 15),
-                        TextFormField(controller: fullDescCtrl, maxLines: 4, style: const TextStyle(color: Colors.white), decoration: _inputStyle('Detailed Description', Icons.description_outlined)),
+                        TextFormField(
+                            controller: fullDescCtrl,
+                            maxLines: 4,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: _inputStyle('Detailed Description',
+                                Icons.description_outlined)),
                       ]),
                       const SizedBox(height: 25),
                       _buildSectionTitle('SCHEDULE & VENUE'),
                       _buildGlassCard([
-                        TextFormField(controller: venueCtrl, style: const TextStyle(color: Colors.white), decoration: _inputStyle('Venue Name', Icons.location_on_outlined)),
+                        TextFormField(
+                            controller: venueCtrl,
+                            style: const TextStyle(color: Colors.white),
+                            decoration: _inputStyle(
+                                'Venue Name', Icons.location_on_outlined)),
                         const SizedBox(height: 15),
-                        _buildDatePickerTile('START DATE', startDate, () => pickDate(true)),
+                        _buildDatePickerTile(
+                            'START DATE', startDate, () => pickDate(true)),
                         const Divider(color: Colors.white10, height: 20),
-                        _buildDatePickerTile('END DATE (OPTIONAL)', endDate, () => pickDate(false)),
+                        _buildDatePickerTile('END DATE (OPTIONAL)', endDate,
+                                () => pickDate(false)),
                       ]),
                       const SizedBox(height: 25),
+
+                      // ================= MAP LOCATION SECTION =================
+                      _buildSectionTitle('EVENT LOCATION (MAP)'),
+                      _buildGlassCard([
+                        Container(
+                          height: 250,
+                          margin: const EdgeInsets.only(bottom: 15),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: Colors.white.withOpacity(0.1)),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: FlutterMap(
+                              mapController: _mapController,
+                              options: MapOptions(
+                                initialCenter: _selectedLocation,
+                                initialZoom: 14,
+                                onTap: (tapPosition, point) =>
+                                    _updateMarker(point),
+                              ),
+                              children: [
+                                TileLayer(
+                                  urlTemplate:
+                                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                ),
+                                MarkerLayer(markers: _markers),
+                              ],
+                            ),
+                          ),
+                        ),
+                        TextFormField(
+                          controller: locationDmsCtrl,
+                          readOnly: true,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: _inputStyle('Location (DMS Format)',
+                              Icons.my_location_rounded),
+                        ),
+                        const SizedBox(height: 15),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _handleMyLocation,
+                            icon: Icon(Icons.gps_fixed_rounded,
+                                size: 18,
+                                color: _fetchingLocation
+                                    ? Colors.white38
+                                    : const Color(0xFF0F2027)),
+                            label: Text(
+                                _fetchingLocation
+                                    ? "Getting Location..."
+                                    : "Use My Current Location",
+                                style:
+                                const TextStyle(fontWeight: FontWeight.w900)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.tealAccent,
+                              foregroundColor: const Color(0xFF0F2027),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 25),
+
                       _buildSectionTitle('EVENT GALLERY'),
                       _buildGallerySection(),
                       const SizedBox(height: 25),
                       _buildGlassCard([
-                        _buildSwitchTile('Publish Immediately', isPublished, (v) => setState(() => isPublished = v)),
-                        _buildSwitchTile('Feature this Event', isFeatured, (v) => setState(() => isFeatured = v)),
+                        _buildSwitchTile('Publish Immediately', isPublished,
+                                (v) => setState(() => isPublished = v)),
+                        _buildSwitchTile('Feature this Event', isFeatured,
+                                (v) => setState(() => isFeatured = v)),
                       ]),
                       const SizedBox(height: 40),
                       _buildSubmitButton(),
@@ -295,7 +488,12 @@ class _CreateEventPageState extends State<CreateEventPage> {
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 10),
-      child: Text(title, style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.5)),
+      child: Text(title,
+          style: const TextStyle(
+              color: Colors.cyanAccent,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              letterSpacing: 1.5)),
     );
   }
 
@@ -338,9 +536,11 @@ class _CreateEventPageState extends State<CreateEventPage> {
             : const Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.add_photo_alternate_outlined, size: 40, color: Colors.cyanAccent),
+            Icon(Icons.add_photo_alternate_outlined,
+                size: 40, color: Colors.cyanAccent),
             SizedBox(height: 8),
-            Text('Upload Event Banner', style: TextStyle(color: Colors.white38, fontSize: 12)),
+            Text('Upload Event Banner',
+                style: TextStyle(color: Colors.white38, fontSize: 12)),
           ],
         ),
       ),
@@ -353,11 +553,18 @@ class _CreateEventPageState extends State<CreateEventPage> {
       onTap: onTap,
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.cyanAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-        child: const Icon(Icons.calendar_today_outlined, color: Colors.cyanAccent, size: 18),
+        decoration: BoxDecoration(
+            color: Colors.cyanAccent.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10)),
+        child: const Icon(Icons.calendar_today_outlined,
+            color: Colors.cyanAccent, size: 18),
       ),
-      title: Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
-      subtitle: Text(dt == null ? 'Not Set' : dt.toString().substring(0, 16), style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
+      title: Text(label,
+          style: const TextStyle(
+              color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
+      subtitle: Text(dt == null ? 'Not Set' : dt.toString().substring(0, 16),
+          style: const TextStyle(
+              color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
     );
   }
 
@@ -380,7 +587,8 @@ class _CreateEventPageState extends State<CreateEventPage> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.cyanAccent.withOpacity(0.3)),
                 ),
-                child: const Icon(Icons.add_a_photo_outlined, color: Colors.cyanAccent),
+                child: const Icon(Icons.add_a_photo_outlined,
+                    color: Colors.cyanAccent),
               ),
             );
           }
@@ -424,10 +632,14 @@ class _CreateEventPageState extends State<CreateEventPage> {
           shadowColor: Colors.cyanAccent.withOpacity(0.4),
         ),
         onPressed: submit,
-        child: const Text('CREATE EVENT NOW', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+        child: const Text('CREATE EVENT NOW',
+            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2)),
       ),
     );
   }
 
-  Widget _blurCircle(double size, Color color) => Container(width: size, height: size, decoration: BoxDecoration(shape: BoxShape.circle, color: color));
+  Widget _blurCircle(double size, Color color) => Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color));
 }

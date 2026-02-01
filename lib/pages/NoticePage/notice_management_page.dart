@@ -13,7 +13,8 @@ class NoticeManagementPage extends StatefulWidget {
   State<NoticeManagementPage> createState() => _NoticeManagementPageState();
 }
 
-class _NoticeManagementPageState extends State<NoticeManagementPage> with SingleTickerProviderStateMixin {
+class _NoticeManagementPageState extends State<NoticeManagementPage>
+    with SingleTickerProviderStateMixin {
   final _supabase = Supabase.instance.client;
   bool _loading = true;
   List<Notice> notices = [];
@@ -37,7 +38,6 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
     super.dispose();
   }
 
-  // সার্চ ফিল্টার লজিক
   List<Notice> get _filteredNotices {
     if (_searchQuery.isEmpty) return notices;
     return notices
@@ -62,7 +62,7 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
       _animationController.forward(from: 0);
     } catch (e) {
       _error = 'বিজ্ঞপ্তি লোড করতে সমস্যা হয়েছে';
-      debugPrint(e.toString());
+      debugPrint('Fetch error: $e');
     }
 
     if (mounted) setState(() => _loading = false);
@@ -77,17 +77,17 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
 
       if (notice.pdfUrl != null) {
         try {
-          final fileName = notice.pdfUrl!.split('/').last;
-          await _supabase.storage.from('notice-pdfs').remove(['pdfs/$fileName']);
+          final fileName = notice.pdfUrl!.split('/').last.split('?').first;
+          await _supabase.storage.from('notice-pdfs').remove([fileName]);
         } catch (e) {
-          debugPrint('PDF deletion error: $e');
+          debugPrint('File deletion error: $e');
         }
       }
 
       await _supabase.from('notices').delete().eq('id', notice.id);
 
       if (mounted) {
-        Navigator.pop(context); // লোডিং ডায়ালগ বন্ধ করুন
+        Navigator.pop(context);
         _showSuccessSnackBar('বিজ্ঞপ্তি সফলভাবে মুছে ফেলা হয়েছে');
       }
 
@@ -100,27 +100,68 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
     }
   }
 
-  Future<String?> _uploadPdfToSupabase(PlatformFile file) async {
+  Future<String?> _uploadFileToSupabase(PlatformFile file) async {
     try {
       final bytes = file.bytes;
-      if (bytes == null) throw Exception('ফাইল পড়া যায়নি');
+      if (bytes == null) {
+        _showErrorSnackBar('ফাইল পড়া যায়নি');
+        return null;
+      }
 
+      // Clean filename: remove special characters and Bangla characters
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = '${timestamp}_${file.name}';
-      final filePath = 'pdfs/$fileName';
+      final extension = file.extension ?? 'pdf';
+      final cleanName = file.name
+          .replaceAll(RegExp(r'[^\w\s.-]'), '') // Remove special chars
+          .replaceAll(' ', '_') // Replace spaces
+          .replaceAll(RegExp(r'[^\x00-\x7F]'), ''); // Remove non-ASCII (Bangla)
 
+      final fileName = cleanName.isEmpty
+          ? '$timestamp.$extension'
+          : '${timestamp}_$cleanName';
+
+      // Get content type based on extension
+      String contentType;
+      switch (extension.toLowerCase()) {
+        case 'pdf':
+          contentType = 'application/pdf';
+          break;
+        case 'doc':
+        case 'docx':
+          contentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          break;
+        case 'txt':
+          contentType = 'text/plain';
+          break;
+        case 'jpg':
+        case 'jpeg':
+          contentType = 'image/jpeg';
+          break;
+        case 'png':
+          contentType = 'image/png';
+          break;
+        default:
+          contentType = 'application/octet-stream';
+      }
+
+      debugPrint('Uploading: $fileName (${bytes.length} bytes)');
+
+      // Upload without 'documents/' prefix
       await _supabase.storage.from('notice-pdfs').uploadBinary(
-        filePath,
+        fileName,
         bytes,
-        fileOptions: const FileOptions(
-          contentType: 'application/pdf',
-          upsert: false,
+        fileOptions: FileOptions(
+          contentType: contentType,
+          upsert: true,
         ),
       );
 
-      return _supabase.storage.from('notice-pdfs').getPublicUrl(filePath);
+      final url = _supabase.storage.from('notice-pdfs').getPublicUrl(fileName);
+      debugPrint('Upload successful: $url');
+      return url;
     } catch (e) {
-      debugPrint('PDF upload error: $e');
+      debugPrint('Upload error: $e');
+      _showErrorSnackBar('ফাইল আপলোড ব্যর্থ: $e');
       return null;
     }
   }
@@ -129,8 +170,8 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
     final isEditing = notice != null;
     final titleCtrl = TextEditingController(text: notice?.title ?? '');
     DateTime selectedDate = notice?.publishDate ?? DateTime.now();
-    String? uploadedPdfUrl = notice?.pdfUrl;
-    PlatformFile? selectedPdfFile;
+    String? uploadedFileUrl = notice?.pdfUrl;
+    PlatformFile? selectedFile;
     bool isUploading = false;
 
     showDialog(
@@ -145,7 +186,7 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Container(
-                constraints: const BoxConstraints(maxWidth: 520),
+                constraints: const BoxConstraints(maxWidth: 550),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
@@ -158,23 +199,35 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Header
                     Container(
                       padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
                           colors: [Color(0xFF1CB5E0), Color(0xFF000046)],
                         ),
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(35)),
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(35)),
                       ),
                       child: Row(
                         children: [
-                          Icon(isEditing ? Icons.edit_note : Icons.add_circle_outline, color: Colors.white, size: 28),
+                          Icon(
+                            isEditing ? Icons.edit_note : Icons.add_circle_outline,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                           const SizedBox(width: 12),
-                          Text(isEditing ? 'বিজ্ঞপ্তি সম্পাদনা' : 'নতুন বিজ্ঞপ্তি',
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
+                          Text(
+                            isEditing ? 'বিজ্ঞপ্তি সম্পাদনা' : 'নতুন বিজ্ঞপ্তি',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                           const Spacer(),
-                          IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close, color: Colors.white70)),
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.close, color: Colors.white70),
+                          ),
                         ],
                       ),
                     ),
@@ -193,35 +246,87 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
                             ),
                             const SizedBox(height: 20),
                             _buildLabel('প্রকাশের তারিখ'),
-                            _buildDatePickerField(context, selectedDate, (date) => setDialogState(() => selectedDate = date)),
+                            _buildDatePickerField(
+                              context,
+                              selectedDate,
+                                  (date) => setDialogState(() => selectedDate = date),
+                            ),
                             const SizedBox(height: 20),
                             _buildLabel('সংযুক্ত ডকুমেন্ট'),
-                            _buildFileSection(selectedPdfFile, uploadedPdfUrl, setDialogState),
+                            _buildFileSection(
+                              selectedFile,
+                              uploadedFileUrl,
+                                  (file) {
+                                setDialogState(() {
+                                  selectedFile = file;
+                                  if (file == null) uploadedFileUrl = null;
+                                });
+                              },
+                            ),
                             if (isUploading) ...[
                               const SizedBox(height: 20),
-                              const LinearProgressIndicator(color: Colors.cyanAccent, backgroundColor: Colors.white10),
+                              const LinearProgressIndicator(
+                                color: Colors.cyanAccent,
+                                backgroundColor: Colors.white10,
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'আপলোড হচ্ছে...',
+                                style: TextStyle(color: Colors.cyanAccent, fontSize: 12),
+                              ),
                             ]
                           ],
                         ),
                       ),
                     ),
-                    _buildDialogActions(context, isUploading, isEditing, () async {
-                      if (titleCtrl.text.isEmpty) { _showErrorSnackBar('শিরোনাম লিখুন'); return; }
-                      setDialogState(() => isUploading = true);
-                      try {
-                        String? finalPdfUrl = uploadedPdfUrl;
-                        if (selectedPdfFile != null) finalPdfUrl = await _uploadPdfToSupabase(selectedPdfFile!);
-                        final data = {'title': titleCtrl.text.trim(), 'publish_date': selectedDate.toIso8601String(), 'pdf_url': finalPdfUrl};
-                        if (isEditing) { await _supabase.from('notices').update(data).eq('id', notice.id); }
-                        else { await _supabase.from('notices').insert(data); }
-                        Navigator.pop(context);
-                        _fetchNotices();
-                        _showSuccessSnackBar(isEditing ? 'আপডেট হয়েছে' : 'যোগ হয়েছে');
-                      } catch (e) {
-                        setDialogState(() => isUploading = false);
-                        _showErrorSnackBar('ত্রুটি ঘটেছে');
-                      }
-                    }),
+                    _buildDialogActions(
+                      context,
+                      isUploading,
+                      isEditing,
+                          () async {
+                        if (titleCtrl.text.isEmpty) {
+                          _showErrorSnackBar('শিরোনাম লিখুন');
+                          return;
+                        }
+
+                        setDialogState(() => isUploading = true);
+
+                        try {
+                          String? finalFileUrl = uploadedFileUrl;
+
+                          if (selectedFile != null) {
+                            finalFileUrl = await _uploadFileToSupabase(selectedFile!);
+                            if (finalFileUrl == null) {
+                              setDialogState(() => isUploading = false);
+                              return;
+                            }
+                          }
+
+                          final data = {
+                            'title': titleCtrl.text.trim(),
+                            'publish_date': selectedDate.toIso8601String(),
+                            'pdf_url': finalFileUrl,
+                          };
+
+                          if (isEditing) {
+                            await _supabase
+                                .from('notices')
+                                .update(data)
+                                .eq('id', notice.id);
+                          } else {
+                            await _supabase.from('notices').insert(data);
+                          }
+
+                          Navigator.pop(context);
+                          _fetchNotices();
+                          _showSuccessSnackBar(isEditing ? 'আপডেট হয়েছে' : 'যোগ হয়েছে');
+                        } catch (e) {
+                          setDialogState(() => isUploading = false);
+                          _showErrorSnackBar('ত্রুটি ঘটেছে: $e');
+                          debugPrint('Save error: $e');
+                        }
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -232,7 +337,6 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
     );
   }
 
-  // --- UI Build ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -242,7 +346,9 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
         slivers: [
           _buildSliverAppBar(),
           if (_loading)
-            const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Colors.cyanAccent)))
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator(color: Colors.cyanAccent)),
+            )
           else if (_error != null)
             SliverFillRemaining(child: _buildErrorState())
           else if (_filteredNotices.isEmpty)
@@ -255,7 +361,10 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
         onPressed: () => _showAddEditDialog(),
         backgroundColor: Colors.cyanAccent,
         icon: const Icon(Icons.add_rounded, color: Colors.black),
-        label: const Text('নতুন নোটিশ', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        label: const Text(
+          'নতুন নোটিশ',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
@@ -269,15 +378,38 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: true,
         titlePadding: const EdgeInsets.only(bottom: 90),
-        title: const Text('বিজ্ঞপ্তি ব্যবস্থাপনা', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.white, letterSpacing: 1.2)),
+        title: const Text(
+          'বিজ্ঞপ্তি ব্যবস্থাপনা',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+            color: Colors.white,
+            letterSpacing: 1.2,
+          ),
+        ),
         background: Container(
           decoration: const BoxDecoration(
-            gradient: LinearGradient(begin: Alignment.topRight, colors: [Color(0xFF0F2027), Color(0xFF2C5364)]),
+            gradient: LinearGradient(
+              begin: Alignment.topRight,
+              colors: [Color(0xFF0F2027), Color(0xFF2C5364)],
+            ),
           ),
           child: Stack(
             children: [
-              Positioned(top: -50, right: -50, child: CircleAvatar(radius: 120, backgroundColor: Colors.cyanAccent.withOpacity(0.05))),
-              const Center(child: Opacity(opacity: 0.05, child: Icon(Icons.campaign_rounded, size: 150, color: Colors.white))),
+              Positioned(
+                top: -50,
+                right: -50,
+                child: CircleAvatar(
+                  radius: 120,
+                  backgroundColor: Colors.cyanAccent.withOpacity(0.05),
+                ),
+              ),
+              const Center(
+                child: Opacity(
+                  opacity: 0.05,
+                  child: Icon(Icons.campaign_rounded, size: 150, color: Colors.white),
+                ),
+              ),
             ],
           ),
         ),
@@ -295,7 +427,10 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
               prefixIcon: const Icon(Icons.search, color: Colors.cyanAccent),
               filled: true,
               fillColor: Colors.white.withOpacity(0.05),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
         ),
@@ -323,6 +458,8 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
 
   Widget _buildNoticeCard(Notice notice, int index) {
     final isNew = DateTime.now().difference(notice.publishDate).inDays < 3;
+    final fileExtension = notice.pdfUrl?.split('.').last.split('?').first ?? '';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -332,88 +469,336 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
       ),
       child: Column(
         children: [
-          Container(height: 5, decoration: BoxDecoration(
-            gradient: LinearGradient(colors: index % 2 == 0 ? [Colors.cyanAccent, Colors.blue] : [Colors.purpleAccent, Colors.pink]),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          )),
+          Container(
+            height: 5,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: index % 2 == 0
+                    ? [Colors.cyanAccent, Colors.blue]
+                    : [Colors.purpleAccent, Colors.pink],
+              ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+          ),
           ListTile(
             contentPadding: const EdgeInsets.all(20),
-            leading: CircleAvatar(backgroundColor: Colors.white10, child: Text('${index + 1}', style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold))),
-            title: Text(notice.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, height: 1.4)),
+            leading: CircleAvatar(
+              backgroundColor: Colors.white10,
+              child: Text(
+                '${index + 1}',
+                style: const TextStyle(
+                  color: Colors.cyanAccent,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            title: Text(
+              notice.title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                height: 1.4,
+              ),
+            ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 10),
-              child: Row(children: [
-                const Icon(Icons.calendar_today, size: 12, color: Colors.white38),
-                const SizedBox(width: 5),
-                Text(_formatDate(notice.publishDate), style: const TextStyle(color: Colors.white38, fontSize: 12)),
-                if (isNew) ...[const SizedBox(width: 10), _cardBadge('NEW', Colors.redAccent)],
-                if (notice.pdfUrl != null) ...[const SizedBox(width: 10), _cardBadge('PDF', Colors.blueAccent)],
-              ]),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.calendar_today, size: 12, color: Colors.white38),
+                      const SizedBox(width: 5),
+                      Text(
+                        _formatDate(notice.publishDate),
+                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  if (isNew) _cardBadge('NEW', Colors.redAccent),
+                  if (notice.pdfUrl != null)
+                    _cardBadge(
+                      fileExtension.toUpperCase(),
+                      _getFileColor(fileExtension),
+                    ),
+                ],
+              ),
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(color: Colors.black12, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24))),
-            child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-              TextButton.icon(onPressed: () => _showAddEditDialog(notice: notice), icon: const Icon(Icons.edit_note, color: Colors.cyanAccent), label: const Text('এডিট', style: TextStyle(color: Colors.cyanAccent))),
-              TextButton.icon(onPressed: () => _deleteNotice(notice), icon: const Icon(Icons.delete_outline, color: Colors.redAccent), label: const Text('ডিলিট', style: TextStyle(color: Colors.redAccent))),
-            ]),
+            decoration: const BoxDecoration(
+              color: Colors.black12,
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _showAddEditDialog(notice: notice),
+                  icon: const Icon(Icons.edit_note, color: Colors.cyanAccent),
+                  label: const Text('এডিট', style: TextStyle(color: Colors.cyanAccent)),
+                ),
+                TextButton.icon(
+                  onPressed: () => _deleteNotice(notice),
+                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                  label: const Text('ডিলিট', style: TextStyle(color: Colors.redAccent)),
+                ),
+              ],
+            ),
           )
         ],
       ),
     );
   }
 
-  // --- Helper Methods ---
-  Widget _buildLabel(String text) => Padding(padding: const EdgeInsets.only(bottom: 8, left: 4), child: Text(text, style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)));
+  Color _getFileColor(String extension) {
+    switch (extension.toLowerCase()) {
+      case 'pdf':
+        return Colors.redAccent;
+      case 'doc':
+      case 'docx':
+        return Colors.blueAccent;
+      case 'txt':
+        return Colors.greenAccent;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        return Colors.orangeAccent;
+      default:
+        return Colors.grey;
+    }
+  }
 
-  InputDecoration _glassInputDecoration(String hint) => InputDecoration(
-    hintText: hint, hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
-    filled: true, fillColor: Colors.black26,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.cyanAccent, width: 1)),
-  );
-
-  Widget _buildDatePickerField(BuildContext context, DateTime date, Function(DateTime) onPick) => InkWell(
-    onTap: () async {
-      final picked = await showDatePicker(context: context, initialDate: date, firstDate: DateTime(2020), lastDate: DateTime(2030));
-      if (picked != null) onPick(picked);
-    },
-    child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(15)),
-      child: Row(children: [const Icon(Icons.calendar_month, color: Colors.cyanAccent, size: 20), const SizedBox(width: 12), Text(_formatDate(date), style: const TextStyle(color: Colors.white))]),
+  Widget _buildLabel(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8, left: 4),
+    child: Text(
+      text,
+      style: const TextStyle(
+        color: Colors.white38,
+        fontSize: 10,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 1.5,
+      ),
     ),
   );
 
-  Widget _buildFileSection(PlatformFile? file, String? url, StateSetter setDialogState) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.white10)),
-    child: Column(children: [
-      if (file != null || url != null) Text(file?.name ?? 'PDF Attached', style: const TextStyle(color: Colors.greenAccent, fontSize: 12)),
-      TextButton.icon(onPressed: () async {
-        final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['pdf'], withData: true);
-        if (result != null) setDialogState(() => file = result.files.first);
-      }, icon: const Icon(Icons.upload_file, color: Colors.white70), label: const Text('SELECT PDF', style: TextStyle(color: Colors.white70))),
-    ]),
+  InputDecoration _glassInputDecoration(String hint) => InputDecoration(
+    hintText: hint,
+    hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
+    filled: true,
+    fillColor: Colors.black26,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(15),
+      borderSide: BorderSide.none,
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(15),
+      borderSide: const BorderSide(color: Colors.cyanAccent, width: 1),
+    ),
   );
 
-  Widget _buildDialogActions(BuildContext context, bool loading, bool isEditing, VoidCallback onSave) => Padding(
-    padding: const EdgeInsets.all(24),
-    child: Row(children: [
-      Expanded(child: TextButton(onPressed: loading ? null : () => Navigator.pop(context), child: const Text('বাতিল', style: TextStyle(color: Colors.white38)))),
-      const SizedBox(width: 12),
-      Expanded(flex: 2, child: ElevatedButton(onPressed: loading ? null : onSave, style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: Text(isEditing ? 'আপডেট' : 'যোগ করুন', style: const TextStyle(fontWeight: FontWeight.bold)))),
-    ]),
+  Widget _buildDatePickerField(
+      BuildContext context,
+      DateTime date,
+      Function(DateTime) onPick,
+      ) =>
+      InkWell(
+        onTap: () async {
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: date,
+            firstDate: DateTime(2020),
+            lastDate: DateTime(2030),
+          );
+          if (picked != null) onPick(picked);
+        },
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.black26,
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.calendar_month, color: Colors.cyanAccent, size: 20),
+              const SizedBox(width: 12),
+              Text(_formatDate(date), style: const TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+      );
+
+  Widget _buildFileSection(
+      PlatformFile? file,
+      String? url,
+      Function(PlatformFile?) onPick,
+      ) {
+    final fileName = file?.name ?? (url?.split('/').last ?? '');
+    final hasFile = file != null || url != null;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        children: [
+          if (hasFile)
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.greenAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.greenAccent, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      fileName,
+                      style: const TextStyle(
+                        color: Colors.greenAccent,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.redAccent, size: 18),
+                    onPressed: () => onPick(null),
+                  ),
+                ],
+              ),
+            ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              final result = await FilePicker.platform.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png'],
+                withData: true,
+              );
+              if (result != null && result.files.isNotEmpty) {
+                onPick(result.files.first);
+              }
+            },
+            icon: const Icon(Icons.upload_file),
+            label: Text(hasFile ? 'CHANGE FILE' : 'SELECT FILE'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.cyanAccent.withOpacity(0.2),
+              foregroundColor: Colors.cyanAccent,
+              minimumSize: const Size(double.infinity, 45),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Supported: PDF, DOC, DOCX, TXT, JPG, PNG',
+            style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDialogActions(
+      BuildContext context,
+      bool loading,
+      bool isEditing,
+      VoidCallback onSave,
+      ) =>
+      Padding(
+        padding: const EdgeInsets.all(24),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextButton(
+                onPressed: loading ? null : () => Navigator.pop(context),
+                child: const Text('বাতিল', style: TextStyle(color: Colors.white38)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton(
+                onPressed: loading ? null : onSave,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.cyanAccent,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  isEditing ? 'আপডেট' : 'যোগ করুন',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Widget _cardBadge(String text, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(5),
+      border: Border.all(color: color.withOpacity(0.3)),
+    ),
+    child: Text(
+      text,
+      style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.bold),
+    ),
   );
 
-  Widget _cardBadge(String text, Color color) => Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(5), border: Border.all(color: color.withOpacity(0.3))), child: Text(text, style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.bold)));
-  Widget _buildErrorState() => Center(child: Text(_error!, style: const TextStyle(color: Colors.redAccent)));
-  Widget _buildEmptyState() => const Center(child: Text('কোনো বিজ্ঞপ্তি নেই', style: TextStyle(color: Colors.white24)));
+  Widget _buildErrorState() => Center(
+    child: Text(_error!, style: const TextStyle(color: Colors.redAccent)),
+  );
+
+  Widget _buildEmptyState() => const Center(
+    child: Text('কোনো বিজ্ঞপ্তি নেই', style: TextStyle(color: Colors.white24)),
+  );
+
   String _formatDate(DateTime date) => DateFormat('dd MMM yyyy').format(date);
-  void _showLoadingDialog() => showDialog(context: context, barrierDismissible: false, builder: (ctx) => const Center(child: CircularProgressIndicator(color: Colors.cyanAccent)));
-  void _showSuccessSnackBar(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), backgroundColor: Colors.cyanAccent.shade700, behavior: SnackBarBehavior.floating));
-  void _showErrorSnackBar(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), backgroundColor: Colors.redAccent, behavior: SnackBarBehavior.floating));
+
+  void _showLoadingDialog() => showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => const Center(
+      child: CircularProgressIndicator(color: Colors.cyanAccent),
+    ),
+  );
+
+  void _showSuccessSnackBar(String m) =>
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(m),
+          backgroundColor: Colors.cyanAccent.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+  void _showErrorSnackBar(String m) =>
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(m),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
 
   Future<bool> _showDeleteConfirmation(String title) async {
     return await showDialog(
@@ -421,12 +806,25 @@ class _NoticeManagementPageState extends State<NoticeManagementPage> with Single
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1B2A6B),
         title: const Text('Delete?', style: TextStyle(color: Colors.white)),
-        content: Text('Are you sure you want to delete "$title"?', style: const TextStyle(color: Colors.white70)),
+        content: Text(
+          'Are you sure you want to delete "$title"?',
+          style: const TextStyle(color: Colors.white70),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('DELETE', style: TextStyle(color: Colors.redAccent))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'DELETE',
+              style: TextStyle(color: Colors.redAccent),
+            ),
+          ),
         ],
       ),
-    ) ?? false;
+    ) ??
+        false;
   }
 }

@@ -36,7 +36,6 @@ class _NoticePageState extends State<NoticePage> with SingleTickerProviderStateM
     super.dispose();
   }
 
-  // সার্চ ফিল্টার লজিক
   List<Notice> get _filteredNotices {
     if (_searchQuery.isEmpty) return notices;
     return notices
@@ -66,18 +65,67 @@ class _NoticePageState extends State<NoticePage> with SingleTickerProviderStateM
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _openPdf(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      _showErrorSnackBar('ডকুমেন্টটি খোলা যাচ্ছে না');
+  Future<void> _openFile(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        _showErrorSnackBar('ফাইলটি খোলা যাচ্ছে না');
+      }
+    } catch (e) {
+      _showErrorSnackBar('ত্রুটি ঘটেছে: $e');
+    }
+  }
+
+  String _getFileExtension(String? url) {
+    if (url == null) return '';
+    return url.split('.').last.split('?').first.toLowerCase();
+  }
+
+  IconData _getFileIcon(String extension) {
+    switch (extension) {
+      case 'pdf':
+        return Icons.picture_as_pdf_rounded;
+      case 'doc':
+      case 'docx':
+        return Icons.description_rounded;
+      case 'txt':
+        return Icons.text_snippet_rounded;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        return Icons.image_rounded;
+      default:
+        return Icons.insert_drive_file_rounded;
+    }
+  }
+
+  Color _getFileColor(String extension) {
+    switch (extension) {
+      case 'pdf':
+        return Colors.redAccent;
+      case 'doc':
+      case 'docx':
+        return Colors.blueAccent;
+      case 'txt':
+        return Colors.greenAccent;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        return Colors.orangeAccent;
+      default:
+        return Colors.grey;
     }
   }
 
   void _showErrorSnackBar(String m) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(m), backgroundColor: Colors.redAccent, behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text(m),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -90,7 +138,11 @@ class _NoticePageState extends State<NoticePage> with SingleTickerProviderStateM
         slivers: [
           _buildSliverAppBar(),
           if (_loading)
-            const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Colors.cyanAccent)))
+            const SliverFillRemaining(
+              child: Center(
+                child: CircularProgressIndicator(color: Colors.cyanAccent),
+              ),
+            )
           else if (_error != null)
             SliverFillRemaining(child: _buildErrorState())
           else if (_filteredNotices.isEmpty)
@@ -118,34 +170,34 @@ class _NoticePageState extends State<NoticePage> with SingleTickerProviderStateM
         title: const Text(
           'বিজ্ঞপ্তি বোর্ড',
           style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
-              color: Colors.white,
-              letterSpacing: 1.2
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+            color: Colors.white,
+            letterSpacing: 1.2,
           ),
         ),
         background: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-                begin: Alignment.topRight,
-                colors: [Color(0xFF0F2027), Color(0xFF2C5364)]
+              begin: Alignment.topRight,
+              colors: [Color(0xFF0F2027), Color(0xFF2C5364)],
             ),
           ),
           child: Stack(
             children: [
               Positioned(
-                  top: -50,
-                  right: -50,
-                  child: CircleAvatar(
-                      radius: 120,
-                      backgroundColor: Colors.cyanAccent.withOpacity(0.05)
-                  )
+                top: -50,
+                right: -50,
+                child: CircleAvatar(
+                  radius: 120,
+                  backgroundColor: Colors.cyanAccent.withOpacity(0.05),
+                ),
               ),
               const Center(
-                  child: Opacity(
-                      opacity: 0.05,
-                      child: Icon(Icons.campaign_rounded, size: 150, color: Colors.white)
-                  )
+                child: Opacity(
+                  opacity: 0.05,
+                  child: Icon(Icons.campaign_rounded, size: 150, color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -165,8 +217,8 @@ class _NoticePageState extends State<NoticePage> with SingleTickerProviderStateM
               filled: true,
               fillColor: Colors.white.withOpacity(0.05),
               border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide.none
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide.none,
               ),
             ),
           ),
@@ -195,8 +247,8 @@ class _NoticePageState extends State<NoticePage> with SingleTickerProviderStateM
 
   Widget _buildNoticeCard(Notice notice, int index) {
     final isNew = DateTime.now().difference(notice.publishDate).inDays < 3;
-    final themeColor = index % 2 == 0 ? Colors.cyanAccent : Colors.purpleAccent;
-    final secondaryColor = index % 2 == 0 ? Colors.blue : Colors.pink;
+    final fileExtension = _getFileExtension(notice.pdfUrl);
+    final hasFile = notice.pdfUrl != null && notice.pdfUrl!.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -210,74 +262,122 @@ class _NoticePageState extends State<NoticePage> with SingleTickerProviderStateM
           Container(
             height: 5,
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [themeColor, secondaryColor]),
+              gradient: LinearGradient(
+                colors: index % 2 == 0
+                    ? [Colors.cyanAccent, Colors.blue]
+                    : [Colors.purpleAccent, Colors.pink],
+              ),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             ),
           ),
-          ListTile(
-            contentPadding: const EdgeInsets.all(20),
-            leading: CircleAvatar(
-                backgroundColor: Colors.white10,
-                child: Text(
-                    '${index + 1}',
-                    style: TextStyle(color: themeColor, fontWeight: FontWeight.bold)
-                )
-            ),
-            title: Text(
-                notice.title,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16, height: 1.4)
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: Row(children: [
-                const Icon(Icons.calendar_today, size: 12, color: Colors.white38),
-                const SizedBox(width: 5),
-                Text(
-                    DateFormat('dd MMM yyyy').format(notice.publishDate),
-                    style: const TextStyle(color: Colors.white38, fontSize: 12)
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: Colors.white10,
+                      child: Text(
+                        '${index + 1}',
+                        style: const TextStyle(
+                          color: Colors.cyanAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            notice.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 8,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.calendar_today,
+                                      size: 12, color: Colors.white38),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    DateFormat('dd MMM yyyy').format(notice.publishDate),
+                                    style: const TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (isNew) _cardBadge('NEW', Colors.redAccent),
+                              if (hasFile)
+                                _cardBadge(
+                                  fileExtension.toUpperCase(),
+                                  _getFileColor(fileExtension),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (hasFile)
+                      InkWell(
+                        onTap: () => _openFile(notice.pdfUrl!),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: _getFileColor(fileExtension).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _getFileColor(fileExtension).withOpacity(0.3),
+                            ),
+                          ),
+                          child: Icon(
+                            _getFileIcon(fileExtension),
+                            color: _getFileColor(fileExtension),
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                if (isNew) ...[
-                  const SizedBox(width: 10),
-                  _cardBadge('NEW', Colors.redAccent)
-                ],
-                if (notice.pdfUrl != null) ...[
-                  const SizedBox(width: 10),
-                  _cardBadge('PDF', Colors.blueAccent)
-                ],
-              ]),
+              ],
             ),
           ),
-          if (notice.pdfUrl != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: const BoxDecoration(
-                  color: Colors.black12,
-                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(24))
-              ),
-              child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                        onPressed: () => _openPdf(notice.pdfUrl!),
-                        icon: Icon(Icons.picture_as_pdf_rounded, color: themeColor),
-                        label: Text('ডকুমেন্ট দেখুন', style: TextStyle(color: themeColor, fontWeight: FontWeight.bold))
-                    ),
-                  ]
-              ),
-            )
         ],
       ),
     );
   }
 
   Widget _cardBadge(String text, Color color) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(color: color.withOpacity(0.3))
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      borderRadius: BorderRadius.circular(5),
+      border: Border.all(color: color.withOpacity(0.3)),
+    ),
+    child: Text(
+      text,
+      style: TextStyle(
+        color: color,
+        fontSize: 8,
+        fontWeight: FontWeight.bold,
       ),
-      child: Text(text, style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.bold))
+    ),
   );
 
   Widget _buildErrorState() => Center(
@@ -286,12 +386,18 @@ class _NoticePageState extends State<NoticePage> with SingleTickerProviderStateM
       children: [
         const Icon(Icons.error_outline, color: Colors.redAccent, size: 40),
         const SizedBox(height: 10),
-        Text(_error ?? 'ত্রুটি ঘটেছে', style: const TextStyle(color: Colors.white54)),
+        Text(
+          _error ?? 'ত্রুটি ঘটেছে',
+          style: const TextStyle(color: Colors.white54),
+        ),
       ],
     ),
   );
 
   Widget _buildEmptyState() => const Center(
-    child: Text('কোনো বিজ্ঞপ্তি পাওয়া যায়নি', style: TextStyle(color: Colors.white24)),
+    child: Text(
+      'কোনো বিজ্ঞপ্তি পাওয়া যায়নি',
+      style: TextStyle(color: Colors.white24),
+    ),
   );
 }

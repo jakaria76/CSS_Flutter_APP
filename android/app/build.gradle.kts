@@ -2,10 +2,10 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 
-    // 🔔 Firebase (FCM)
+    // Firebase / Google Services
     id("com.google.gms.google-services")
 
-    // ✅ Flutter plugin (ALWAYS LAST)
+    // Flutter plugin (MUST be last)
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -17,7 +17,7 @@ android {
     defaultConfig {
         applicationId = "com.example.css"
 
-        // 🔴 FCM requires minSdk 21+
+        // Firebase + modern plugins require 21+
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
 
@@ -26,7 +26,7 @@ android {
     }
 
     compileOptions {
-        // ✅ REQUIRED for flutter_local_notifications
+        // Required for flutter_local_notifications & Java 8+ APIs
         isCoreLibraryDesugaringEnabled = true
 
         sourceCompatibility = JavaVersion.VERSION_17
@@ -39,6 +39,7 @@ android {
 
     buildTypes {
         release {
+            // DEBUG signing for now (OK for testing)
             signingConfig = signingConfigs.getByName("debug")
         }
     }
@@ -46,13 +47,13 @@ android {
 
 dependencies {
 
-    // ✅ Firebase BOM
+    // Firebase BOM (keeps versions aligned)
     implementation(platform("com.google.firebase:firebase-bom:34.7.0"))
 
-    // 🔔 Firebase Cloud Messaging
+    // Firebase Cloud Messaging
     implementation("com.google.firebase:firebase-messaging")
 
-    // ✅ REQUIRED by flutter_local_notifications
+    // Required by flutter_local_notifications
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 

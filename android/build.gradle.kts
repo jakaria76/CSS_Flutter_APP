@@ -1,5 +1,8 @@
 import org.gradle.api.tasks.Delete
-import org.gradle.api.file.Directory
+
+// NOTE:
+// Plugin versions are defined in settings.gradle.kts
+// DO NOT define versions here for Flutter 3.19+
 
 plugins {
     id("com.android.application") apply false
@@ -7,22 +10,21 @@ plugins {
     id("org.jetbrains.kotlin.android") apply false
 }
 
-val newBuildDir: Directory =
-    rootProject.layout.buildDirectory
-        .dir("../../build")
-        .get()
-
-rootProject.layout.buildDirectory.value(newBuildDir)
+// Set a single unified build directory (Flutter recommended)
+val newBuildDir = rootProject.layout.buildDirectory.dir("../../build").get()
+rootProject.layout.buildDirectory.set(newBuildDir)
 
 subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
+    val subprojectBuildDir = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.set(subprojectBuildDir)
 }
 
+// Ensure :app is evaluated first
 subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Clean task
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
