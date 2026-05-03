@@ -1,16 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.css">
 
-    <!-- INTERNET -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
-    <!-- LOCATION -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
-    <!-- STORAGE - For CSV Download -->
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
+
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
 
     <application
         android:name="${applicationName}"
@@ -18,17 +18,14 @@
         android:icon="@mipmap/launcher_icon"
         android:requestLegacyExternalStorage="true">
 
-        <!-- ✅ CORRECT: Notification Icon (drawable, NOT mipmap) -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_notification" />
 
-        <!-- ✅ Notification Accent Color -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_color" />
 
-        <!-- Google Maps API -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="YOUR_GOOGLE_MAPS_API_KEY"/>
@@ -53,7 +50,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Supabase Auth Callback -->
         <activity
             android:name="io.supabase.flutter.SupabaseAuthActivity"
             android:exported="true">

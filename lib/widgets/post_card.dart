@@ -4,12 +4,13 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/post_model.dart';
 import 'package:css/pages/feed/ManagePostPage.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class PostCard extends StatefulWidget {
   final Post post;
   final VoidCallback? onTap;
   final VoidCallback? onCommentTap;
-  final VoidCallback? onPostUpdated; // ✅ Callback when post is updated/deleted
+  final VoidCallback? onPostUpdated;
 
   const PostCard({
     Key? key,
@@ -23,351 +24,350 @@ class PostCard extends StatefulWidget {
   State<PostCard> createState() => _PostCardState();
 }
 
-class _PostCardState extends State<PostCard> {
+class _PostCardState extends State<PostCard>
+    with SingleTickerProviderStateMixin {
   int _currentImageIndex = 0;
   final PageController _pageController = PageController();
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
+    _fadeController.forward();
+  }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
   bool _isAdmin() {
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) return false;
-
-    // Check if user is the post owner and is an admin
     final isOwner = user.id == widget.post.adminId;
-    final metadata = user.userMetadata;
-    final isAdminRole = metadata?['role'] == 'admin';
-
+    final isAdminRole = user.userMetadata?['role'] == 'admin';
     return isOwner && isAdminRole;
   }
 
   Future<void> _navigateToEditPost() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => ManagePostPage(post: widget.post),
-      ),
+      MaterialPageRoute(builder: (_) => ManagePostPage(post: widget.post)),
     );
-
-    // If post was updated or deleted, refresh the feed
-    if (result == true && widget.onPostUpdated != null) {
-      widget.onPostUpdated!();
-    }
+    if (result == true) widget.onPostUpdated?.call();
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xFF203A43).withOpacity(0.8),
-              const Color(0xFF2C5364).withOpacity(0.6),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.cyanAccent.withOpacity(0.2),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  // Admin badge
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.cyanAccent.withOpacity(0.3),
-                          Colors.purpleAccent.withOpacity(0.3),
-                        ],
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.admin_panel_settings,
-                      color: Colors.cyanAccent,
-                      size: 24,
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  // Admin info
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Text(
-                              'CSS Admin',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.cyanAccent.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'ADMIN',
-                                style: TextStyle(
-                                  color: Colors.cyanAccent,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Text(
-                              _formatDate(widget.post.createdAt),
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.6),
-                                fontSize: 13,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.public,
-                              size: 12,
-                              color: Colors.white.withOpacity(0.6),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Edit button (only for admin/owner)
-                  if (_isAdmin())
-                    IconButton(
-                      icon: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.edit,
-                          color: Colors.cyanAccent,
-                          size: 18,
-                        ),
-                      ),
-                      onPressed: _navigateToEditPost,
-                    )
-                  else
-                    IconButton(
-                      icon: Icon(
-                        Icons.more_vert,
-                        color: Colors.white.withOpacity(0.6),
-                      ),
-                      onPressed: () {
-                        // Show options for non-admin (future feature)
-                      },
-                    ),
-                ],
-              ),
-            ),
-
-            // Caption
-            if (widget.post.caption.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Text(
-                  widget.post.caption,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    height: 1.5,
-                  ),
-                ),
-              ),
-
-            // Images
-            if (widget.post.images.isNotEmpty) _buildImageSection(),
-
-            // Actions (Comment button)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  // Comment button
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: widget.onCommentTap,
-                      borderRadius: BorderRadius.circular(8),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.1),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.chat_bubble_outline,
-                              size: 18,
-                              color: Colors.white.withOpacity(0.8),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'মন্তব্য',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  // Comment count
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.cyanAccent.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.comment,
-                          size: 16,
-                          color: Colors.cyanAccent,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${widget.post.commentCount} মন্তব্য',
-                          style: const TextStyle(
-                            color: Colors.cyanAccent,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => FadeTransition(
+          opacity: _fadeAnim,
+          child: _buildPostCard(context),
         ),
       ),
     );
   }
 
-  Widget _buildImageSection() {
-    return Column(
-      children: [
-        // Image carousel
-        SizedBox(
-          height: 300,
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: widget.post.images.length,
-            onPageChanged: (index) {
-              setState(() => _currentImageIndex = index);
-            },
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: widget.post.images[index],
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey.shade900,
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                          color: Colors.cyanAccent,
-                          strokeWidth: 2,
+  Widget _buildPostCard(BuildContext context) {
+    final isDark = SC.isDark;
+
+    // ── Color tokens ──────────────────────────────────────────────────────────
+    final textColor    = isDark ? const Color(0xFFE8ECF4) : const Color(0xFF0D1117);
+    final subTextColor = isDark ? const Color(0xFF8B95A7) : const Color(0xFF6B7280);
+    final adminBadgeBg = isDark
+        ? const Color(0xFF00C6FF).withValues(alpha: 0.12)
+        : const Color(0xFF0066CC).withValues(alpha: 0.08);
+    final adminBadgeColor = isDark ? const Color(0xFF00C6FF) : const Color(0xFF0055BB);
+    final avatarBg = isDark
+        ? const Color(0xFF00C6FF).withValues(alpha: 0.15)
+        : const Color(0xFF0055BB).withValues(alpha: 0.10);
+    final editBtnBg = isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.04);
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ── Header ────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+            child: Row(
+              children: [
+                // Avatar with glow ring
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: isDark
+                          ? [const Color(0xFF00C6FF), const Color(0xFF0072FF)]
+                          : [const Color(0xFF0066CC), const Color(0xFF004499)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isDark
+                            ? const Color(0xFF00C6FF).withValues(alpha: 0.30)
+                            : const Color(0xFF0055BB).withValues(alpha: 0.20),
+                        blurRadius: 12,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.admin_panel_settings_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 11),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            SC.tr('css_admin'),
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                          // Admin badge with pill shape
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2.5),
+                            decoration: BoxDecoration(
+                              color: adminBadgeBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: adminBadgeColor.withValues(alpha: 0.25),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Text(
+                              SC.tr('admin_label'),
+                              style: TextStyle(
+                                color: adminBadgeColor,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(Icons.access_time_rounded,
+                              size: 11, color: subTextColor),
+                          const SizedBox(width: 3),
+                          Text(
+                            _formatDate(widget.post.createdAt),
+                            style: TextStyle(
+                              color: subTextColor,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w400,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            width: 3,
+                            height: 3,
+                            decoration: BoxDecoration(
+                              color: subTextColor.withValues(alpha: 0.5),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(Icons.public_rounded,
+                              size: 11, color: subTextColor),
+                          const SizedBox(width: 3),
+                          Text(
+                            'সবার জন্য',
+                            style: TextStyle(
+                              color: subTextColor,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Edit button
+                if (_isAdmin())
+                  GestureDetector(
+                    onTap: _navigateToEditPost,
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: editBtnBg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : Colors.black.withValues(alpha: 0.06),
+                          width: 0.8,
                         ),
                       ),
-                    ),
-                    errorWidget: (context, url, error) => Container(
-                      color: Colors.grey.shade900,
-                      child: const Icon(
-                        Icons.broken_image,
-                        color: Colors.grey,
-                        size: 48,
+                      child: Icon(
+                        Icons.edit_rounded,
+                        color: adminBadgeColor,
+                        size: 16,
                       ),
                     ),
                   ),
+              ],
+            ),
+          ),
+
+          // ── Caption ──────────────────────────────────────────────────────
+          if (widget.post.caption.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              child: Text(
+                widget.post.caption,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 15,
+                  height: 1.6,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 0.1,
                 ),
-              );
-            },
+              ),
+            ),
+
+          // ── Images ───────────────────────────────────────────────────────
+          if (widget.post.images.isNotEmpty) _buildImageSection(isDark),
+
+          const SizedBox(height: 6),
+        ],
+      ),
+    );
+  }
+
+  // ── Image Section ─────────────────────────────────────────────────────────
+  Widget _buildImageSection(bool isDark) {
+    final hasMultiple = widget.post.images.length > 1;
+
+    return Stack(
+      children: [
+        SizedBox(
+          height: 260,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: widget.post.images.length,
+            onPageChanged: (i) => setState(() => _currentImageIndex = i),
+            itemBuilder: (_, index) => Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: CachedNetworkImage(
+                  imageUrl: widget.post.images[index],
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isDark
+                            ? [const Color(0xFF1E2535), const Color(0xFF252D3F)]
+                            : [const Color(0xFFEEF0F4), const Color(0xFFE4E7ED)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        color: isDark
+                            ? const Color(0xFF00C6FF)
+                            : const Color(0xFF0055BB),
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ),
+                  errorWidget: (_, __, ___) => Container(
+                    color: isDark
+                        ? const Color(0xFF1E2535)
+                        : const Color(0xFFEEF0F4),
+                    child: Icon(Icons.broken_image_rounded,
+                        color: isDark ? Colors.white24 : Colors.black26,
+                        size: 48),
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
 
-        // Image indicators
-        if (widget.post.images.length > 1)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+        // Image counter badge (top right)
+        if (hasMultiple)
+          Positioned(
+            top: 12,
+            right: 26,
+            child: Container(
+              padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${_currentImageIndex + 1}/${widget.post.images.length}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ),
+
+        // Dot indicators (bottom)
+        if (hasMultiple)
+          Positioned(
+            bottom: 10,
+            left: 0,
+            right: 0,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(
                 widget.post.images.length,
-                    (index) => Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: _currentImageIndex == index ? 24 : 8,
-                  height: 8,
+                    (index) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeInOut,
+                  margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                  width: _currentImageIndex == index ? 22 : 6,
+                  height: 6,
                   decoration: BoxDecoration(
                     color: _currentImageIndex == index
-                        ? Colors.cyanAccent
-                        : Colors.white.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(4),
+                        ? Colors.white
+                        : Colors.white.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(3),
                   ),
                 ),
               ),
@@ -378,19 +378,12 @@ class _PostCardState extends State<PostCard> {
   }
 
   String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inMinutes < 1) {
-      return 'এইমাত্র';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} মিনিট আগে';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours} ঘণ্টা আগে';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} দিন আগে';
-    } else {
-      return DateFormat('dd MMM yyyy').format(date);
-    }
+    final diff = DateTime.now().difference(date);
+    if (diff.inMinutes < 1) return SC.tr('just_now');
+    if (diff.inMinutes < 60)
+      return '${diff.inMinutes} ${SC.tr('minutes_ago')}';
+    if (diff.inHours < 24) return '${diff.inHours} ${SC.tr('hours_ago')}';
+    if (diff.inDays < 7) return '${diff.inDays} ${SC.tr('days_ago')}';
+    return DateFormat('dd MMM yyyy').format(date);
   }
 }

@@ -1,8 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:css/services/video_service.dart';
 import 'package:css/models/video_model.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class VideosPage extends StatefulWidget {
   const VideosPage({super.key});
@@ -17,7 +19,6 @@ class _VideosPageState extends State<VideosPage> with TickerProviderStateMixin {
   bool isLoading = true;
   String? errorMessage;
   String _searchQuery = '';
-
   late AnimationController _animationController;
 
   @override
@@ -42,12 +43,11 @@ class _VideosPageState extends State<VideosPage> with TickerProviderStateMixin {
       isLoading = true;
       errorMessage = null;
     });
-
     try {
-      final fetchedVideos = await service.fetchVideos();
+      final fetched = await service.fetchVideos();
       if (mounted) {
         setState(() {
-          videos = fetchedVideos;
+          videos = fetched;
           isLoading = false;
         });
         _animationController.forward(from: 0);
@@ -55,7 +55,7 @@ class _VideosPageState extends State<VideosPage> with TickerProviderStateMixin {
     } catch (e) {
       if (mounted) {
         setState(() {
-          errorMessage = "ভিডিও লোড করতে সমস্যা হয়েছে";
+          errorMessage = SC.tr('videoLoadError');
           isLoading = false;
         });
       }
@@ -65,43 +65,76 @@ class _VideosPageState extends State<VideosPage> with TickerProviderStateMixin {
   List<Video> get _filteredVideos {
     if (_searchQuery.isEmpty) return videos;
     return videos
-        .where((v) => v.title.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .where((v) =>
+        v.title.toLowerCase().contains(_searchQuery.toLowerCase()))
         .toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F2027),
-      body: Stack(
-        children: [
-          _buildBackgroundOrbs(),
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              _buildSliverAppBar(),
-              if (isLoading)
-                const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator(color: Colors.cyanAccent)),
-                )
-              else if (errorMessage != null)
-                SliverFillRemaining(child: _buildErrorState())
-              else if (_filteredVideos.isEmpty)
-                  SliverFillRemaining(child: _buildEmptyState())
-                else
-                  _buildVideoList(),
-            ],
-          ),
-        ],
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildPage(),
       ),
     );
   }
 
-  Widget _buildBackgroundOrbs() {
+  Widget _buildPage() {
+    final isDark = SC.isDark;
+    final bgColor = isDark ? SC.bgStart : const Color(0xFFF0F4FF);
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.black.withValues(alpha: 0.08);
+    final fillColor = isDark
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.black.withValues(alpha: 0.05);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: bgColor,
+        body: Stack(
+          children: [
+            _buildBackgroundOrbs(isDark),
+            CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                _buildSliverAppBar(isDark, textColor, borderColor, fillColor),
+                if (isLoading)
+                  SliverFillRemaining(
+                    child: Center(
+                        child: CircularProgressIndicator(color: SC.cyan)),
+                  )
+                else if (errorMessage != null)
+                  SliverFillRemaining(
+                      child: _buildErrorState(textColor, isDark))
+                else if (_filteredVideos.isEmpty)
+                    SliverFillRemaining(child: _buildEmptyState(textColor))
+                  else
+                    _buildVideoList(isDark, textColor),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackgroundOrbs(bool isDark) {
     return Stack(
       children: [
-        Positioned(top: 100, left: -50, child: _orb(300, Colors.cyanAccent.withOpacity(0.05))),
-        Positioned(bottom: 100, right: -50, child: _orb(400, Colors.purpleAccent.withOpacity(0.05))),
+        Positioned(
+            top: 100,
+            left: -50,
+            child: _orb(300, SC.cyan.withValues(alpha: isDark ? 0.05 : 0.03))),
+        Positioned(
+            bottom: 100,
+            right: -50,
+            child: _orb(
+                400, SC.purple.withValues(alpha: isDark ? 0.05 : 0.03))),
       ],
     );
   }
@@ -112,38 +145,51 @@ class _VideosPageState extends State<VideosPage> with TickerProviderStateMixin {
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       boxShadow: [
-        BoxShadow(color: color, blurRadius: 100, spreadRadius: 50),
+        BoxShadow(color: color, blurRadius: 100, spreadRadius: 50)
       ],
     ),
   );
 
-  Widget _buildSliverAppBar() {
+  Widget _buildSliverAppBar(bool isDark, Color textColor, Color borderColor,
+      Color fillColor) {
+    final subTextColor = isDark
+        ? Colors.white24
+        : Colors.black.withValues(alpha: 0.3);
+
     return SliverAppBar(
       expandedHeight: 260,
       pinned: true,
       stretch: true,
-      backgroundColor: const Color(0xFF0F2027),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
-        onPressed: () => Navigator.pop(context),
+      backgroundColor: isDark ? SC.bgStart : const Color(0xFFF0F4FF),
+      leading: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Container(
+          margin: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : Colors.black.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child:
+          Icon(Icons.arrow_back_ios_new, color: textColor, size: 18),
+        ),
       ),
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,
           children: [
             Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
-                ),
-              ),
-            ),
+                decoration: BoxDecoration(gradient: SC.currentGradient)),
             Positioned(
               right: 20,
               bottom: 100,
-              child: Opacity(opacity: 0.1, child: const Icon(Icons.play_circle_filled, size: 100, color: Colors.cyanAccent)),
+              child: Opacity(
+                opacity: 0.1,
+                child: Icon(Icons.play_circle_filled,
+                    size: 100, color: SC.cyan),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.only(left: 30, bottom: 100),
@@ -152,14 +198,29 @@ class _VideosPageState extends State<VideosPage> with TickerProviderStateMixin {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.cyanAccent, borderRadius: BorderRadius.circular(8)),
-                    child: const Text('VIDEOS',
-                        style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 2)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: SC.cyan,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      SC.tr('videos'),
+                      style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 10,
+                          letterSpacing: 2),
+                    ),
                   ),
                   const SizedBox(height: 10),
-                  const Text('ভিডিও গ্যালারি',
-                      style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white)),
+                  Text(
+                    SC.tr('videoGallery'),
+                    style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        color: textColor),
+                  ),
                 ],
               ),
             ),
@@ -175,17 +236,27 @@ class _VideosPageState extends State<VideosPage> with TickerProviderStateMixin {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
               child: TextField(
                 onChanged: (v) => setState(() => _searchQuery = v),
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: textColor),
                 decoration: InputDecoration(
-                  hintText: 'ভিডিও খুঁজুন...',
-                  hintStyle: const TextStyle(color: Colors.white24, fontSize: 14),
-                  prefixIcon: const Icon(Icons.search_rounded, color: Colors.cyanAccent),
+                  hintText: SC.tr('searchVideo'),
+                  hintStyle:
+                  TextStyle(color: subTextColor, fontSize: 14),
+                  prefixIcon:
+                  Icon(Icons.search_rounded, color: SC.cyan),
                   filled: true,
-                  fillColor: Colors.white.withOpacity(0.07),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: const BorderSide(color: Colors.white10)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide(color: Colors.cyanAccent.withOpacity(0.3))),
+                  fillColor: fillColor,
+                  contentPadding:
+                  const EdgeInsets.symmetric(vertical: 0),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(25),
+                      borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(25),
+                      borderSide: BorderSide(color: borderColor)),
+                  focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(25),
+                      borderSide: BorderSide(
+                          color: SC.cyan.withValues(alpha: 0.3))),
                 ),
               ),
             ),
@@ -195,21 +266,22 @@ class _VideosPageState extends State<VideosPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildVideoList() {
+  Widget _buildVideoList(bool isDark, Color textColor) {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate(
               (context, index) {
             final v = _filteredVideos[index];
-            // key ব্যবহার করা হয়েছে যাতে স্ক্রল করলেও প্লেয়ার স্টেট না হারায়
             return FadeTransition(
               opacity: _animationController,
               child: VideoCard(
-                  key: ValueKey(v.id),
-                  video: v,
-                  totalCount: _filteredVideos.length,
-                  index: index
+                key: ValueKey(v.id),
+                video: v,
+                totalCount: _filteredVideos.length,
+                index: index,
+                isDark: isDark,
+                textColor: textColor,
               ),
             );
           },
@@ -219,49 +291,68 @@ class _VideosPageState extends State<VideosPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(Color textColor, bool isDark) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 60, color: Colors.redAccent),
+          Icon(Icons.error_outline, size: 60, color: SC.red),
           const SizedBox(height: 16),
-          Text(errorMessage ?? "ত্রুটি ঘটেছে", style: const TextStyle(color: Colors.white70)),
+          Text(
+            errorMessage ?? SC.tr('errorOccurred'),
+            style:
+            TextStyle(color: textColor.withValues(alpha: 0.7)),
+          ),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: loadVideos,
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent),
-            child: const Text('পুনরায় চেষ্টা করুন', style: TextStyle(color: Colors.black)),
+            style: ElevatedButton.styleFrom(backgroundColor: SC.cyan),
+            child: Text(SC.tr('retryBtn'),
+                style: const TextStyle(color: Colors.black)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return const Center(
+  Widget _buildEmptyState(Color textColor) {
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.video_library_outlined, size: 80, color: Colors.white10),
-          SizedBox(height: 16),
-          Text('কোনো ভিডিও পাওয়া যায়নি', style: TextStyle(color: Colors.white24, fontSize: 18)),
+          Icon(Icons.video_library_outlined,
+              size: 80,
+              color: textColor.withValues(alpha: 0.1)),
+          const SizedBox(height: 16),
+          Text(
+            SC.tr('noVideoFound'),
+            style: TextStyle(
+                color: textColor.withValues(alpha: 0.25),
+                fontSize: 18),
+          ),
         ],
       ),
     );
   }
 }
 
+// ══════════════════════════════════════
+// VIDEO CARD
+// ══════════════════════════════════════
 class VideoCard extends StatefulWidget {
   final Video video;
   final int totalCount;
   final int index;
+  final bool isDark;
+  final Color textColor;
 
   const VideoCard({
     super.key,
     required this.video,
     required this.totalCount,
-    required this.index
+    required this.index,
+    required this.isDark,
+    required this.textColor,
   });
 
   @override
@@ -293,7 +384,7 @@ class _VideoCardState extends State<VideoCard> {
 
   void _listener() {
     if (_isPlayerReady && mounted && !_controller.value.isFullScreen) {
-      // স্টেট আপডেট হ্যান্ডেল করা যায় এখানে
+      // handle state
     }
   }
 
@@ -314,76 +405,77 @@ class _VideoCardState extends State<VideoCard> {
   Widget build(BuildContext context) {
     if (videoId == null) return const SizedBox.shrink();
 
+    final isDark = widget.isDark;
+    final textColor = widget.textColor;
+    final cardColor = isDark ? SC.cardBg : Colors.white;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.08);
+    final subColor =
+    isDark ? Colors.white.withValues(alpha: 0.4) : const Color(0xFF4A5568);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: cardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: borderColor),
         boxShadow: [
-          BoxShadow(color: Colors.black26, blurRadius: 10, offset: const Offset(0, 5)),
+          BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.26 : 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 5)),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              YoutubePlayer(
-                controller: _controller,
-                showVideoProgressIndicator: true,
-                progressIndicatorColor: Colors.cyanAccent,
-                bottomActions: [
-                  const SizedBox(width: 14.0),
-                  CurrentPosition(),
-                  const SizedBox(width: 8.0),
-                  ProgressBar(isExpanded: true),
-                  RemainingDuration(),
-                  const PlaybackSpeedButton(),
-                ],
-                onReady: () {
-                  _isPlayerReady = true;
-                },
-                onEnded: (data) {
-                  _controller.pause();
-                },
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.video.title,
-                      style: const TextStyle(
-                        color: Colors.white,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            YoutubePlayer(
+              controller: _controller,
+              showVideoProgressIndicator: true,
+              progressIndicatorColor: SC.cyan,
+              bottomActions: [
+                const SizedBox(width: 14.0),
+                CurrentPosition(),
+                const SizedBox(width: 8.0),
+                ProgressBar(isExpanded: true),
+                RemainingDuration(),
+                const PlaybackSpeedButton(),
+              ],
+              onReady: () => _isPlayerReady = true,
+              onEnded: (_) => _controller.pause(),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.video.title,
+                    style: TextStyle(
+                        color: textColor,
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.play_circle_outline,
+                          size: 16,
+                          color: SC.cyan.withValues(alpha: 0.6)),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${SC.tr('videoCount')} ${widget.index + 1} ${SC.tr('of')} ${widget.totalCount}',
+                        style: TextStyle(color: subColor, fontSize: 12),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Icon(Icons.play_circle_outline,
-                            size: 16,
-                            color: Colors.cyanAccent.withOpacity(0.6)),
-                        const SizedBox(width: 6),
-                        Text(
-                          'ভিডিও ${widget.index + 1} / ${widget.totalCount}',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.4),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -1,5 +1,6 @@
 // lib/services/about_service.dart
 
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/about_models.dart';
 
@@ -12,11 +13,11 @@ class AboutService {
       final response = await _supabase
           .from('about_overview')
           .select()
-          .single();
+          .maybeSingle(); // single() এর বদলে maybeSingle() নিরাপদ [cite: 191]
 
-      return AboutOverview.fromJson(response);
+      return response != null ? AboutOverview.fromJson(response) : null;
     } catch (e) {
-      print('Error fetching overview: $e');
+      debugPrint('Error fetching overview: $e'); // print এর বদলে debugPrint ব্যবহার করুন [cite: 192]
       return null;
     }
   }
@@ -33,7 +34,7 @@ class AboutService {
           .map((json) => MissionPoint.fromJson(json))
           .toList();
     } catch (e) {
-      print('Error fetching mission points: $e');
+      debugPrint('Error fetching mission points: $e');
       return [];
     }
   }
@@ -50,63 +51,12 @@ class AboutService {
           .map((json) => Activity.fromJson(json))
           .toList();
     } catch (e) {
-      print('Error fetching activities: $e');
+      debugPrint('Error fetching activities: $e');
       return [];
     }
   }
 
-  /// 4️⃣ Get Advisors (ordered)
-  Future<List<Advisor>> getAdvisors() async {
-    try {
-      final response = await _supabase
-          .from('about_advisors')
-          .select()
-          .order('order_index', ascending: true);
-
-      return (response as List)
-          .map((json) => Advisor.fromJson(json))
-          .toList();
-    } catch (e) {
-      print('Error fetching advisors: $e');
-      return [];
-    }
-  }
-
-  /// 5️⃣ Get Previous Presidents (ordered)
-  Future<List<PreviousPresident>> getPreviousPresidents() async {
-    try {
-      final response = await _supabase
-          .from('about_previous_presidents')
-          .select()
-          .order('order_index', ascending: true);
-
-      return (response as List)
-          .map((json) => PreviousPresident.fromJson(json))
-          .toList();
-    } catch (e) {
-      print('Error fetching previous presidents: $e');
-      return [];
-    }
-  }
-
-  /// 6️⃣ Get Current Leadership (ordered)
-  Future<List<Leadership>> getLeadership() async {
-    try {
-      final response = await _supabase
-          .from('about_leadership')
-          .select()
-          .order('order_index', ascending: true);
-
-      return (response as List)
-          .map((json) => Leadership.fromJson(json))
-          .toList();
-    } catch (e) {
-      print('Error fetching leadership: $e');
-      return [];
-    }
-  }
-
-  /// 7️⃣ Get Story Timeline (ordered by date)
+  /// 4️⃣ Get Story Timeline (ordered by date)
   Future<List<StoryEvent>> getStory() async {
     try {
       final response = await _supabase
@@ -118,36 +68,34 @@ class AboutService {
           .map((json) => StoryEvent.fromJson(json))
           .toList();
     } catch (e) {
-      print('Error fetching story: $e');
+      debugPrint('Error fetching story: $e');
       return [];
     }
   }
 
-  /// 8️⃣ Get Contact Info
+  /// 5️⃣ Get Contact Info
   Future<ContactInfo?> getContactInfo() async {
     try {
       final response = await _supabase
           .from('about_contact')
           .select()
-          .single();
+          .maybeSingle();
 
-      return ContactInfo.fromJson(response);
+      return response != null ? ContactInfo.fromJson(response) : null;
     } catch (e) {
-      print('Error fetching contact info: $e');
+      debugPrint('Error fetching contact info: $e');
       return null;
     }
   }
 
-  /// 🔄 Fetch ALL data at once (for efficiency)
+  /// 🔄 Fetch ALL filtered data at once (for efficiency)
+  /// এই মেথডটি এখন শুধুমাত্র প্রয়োজনীয় ৫টি সেকশন লোড করবে
   Future<Map<String, dynamic>> getAllAboutData() async {
     try {
       final results = await Future.wait([
         getOverview(),
         getMissionPoints(),
         getActivities(),
-        getAdvisors(),
-        getPreviousPresidents(),
-        getLeadership(),
         getStory(),
         getContactInfo(),
       ]);
@@ -156,21 +104,24 @@ class AboutService {
         'overview': results[0],
         'missionPoints': results[1],
         'activities': results[2],
-        'advisors': results[3],
-        'previousPresidents': results[4],
-        'leadership': results[5],
-        'story': results[6],
-        'contact': results[7],
+        'story': results[3],
+        'contact': results[4],
       };
     } catch (e) {
-      print('Error fetching all about data: $e');
-      return {};
+      debugPrint('Error fetching all about data: $e');
+      return {
+        'overview': null,
+        'missionPoints': [],
+        'activities': [],
+        'story': [],
+        'contact': null,
+      };
     }
   }
 
-  // ==================== ADMIN METHODS (Future use) ====================
+  // ==================== ADMIN CRUD METHODS ====================
 
-  /// Add Mission Point (Admin only)
+  /// Add Mission Point
   Future<bool> addMissionPoint(String text, int orderIndex) async {
     try {
       await _supabase.from('about_mission_points').insert({
@@ -179,13 +130,13 @@ class AboutService {
       });
       return true;
     } catch (e) {
-      print('Error adding mission point: $e');
+      debugPrint('Error adding mission point: $e');
       return false;
     }
   }
 
-  /// Update Mission Point (Admin only)
-  Future<bool> updateMissionPoint(String id, String text) async {
+  /// Update Mission Point
+  Future<bool> updateMissionPoint(int id, String text) async {
     try {
       await _supabase
           .from('about_mission_points')
@@ -193,24 +144,19 @@ class AboutService {
           .eq('id', id);
       return true;
     } catch (e) {
-      print('Error updating mission point: $e');
+      debugPrint('Error updating mission point: $e');
       return false;
     }
   }
 
-  /// Delete Mission Point (Admin only)
-  Future<bool> deleteMissionPoint(String id) async {
+  /// Generic Delete Method
+  Future<bool> deleteAboutItem(String table, int id) async {
     try {
-      await _supabase
-          .from('about_mission_points')
-          .delete()
-          .eq('id', id);
+      await _supabase.from(table).delete().eq('id', id);
       return true;
     } catch (e) {
-      print('Error deleting mission point: $e');
+      debugPrint('Error deleting item from $table: $e');
       return false;
     }
   }
-
-// Similarly, you can add CRUD methods for other tables...
 }

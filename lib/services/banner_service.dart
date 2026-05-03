@@ -1,21 +1,21 @@
 import 'dart:io';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/banner_model.dart';
+import 'cloudinary_service.dart';
 
 class BannerService {
-  final supabase = Supabase.instance.client;
-  final _picker = ImagePicker();
+  final _supabase = Supabase.instance.client;
+  final _picker   = ImagePicker();
 
-  // ✅ Fetch all active banners (sorted by sort_order)
+  // ─── Fetch ──────────────────────────────────────────────────
   Future<List<BannerModel>> fetchBanners() async {
     try {
-      final response = await supabase
+      final response = await _supabase
           .from('banners')
           .select()
           .eq('is_active', true)
           .order('sort_order', ascending: true);
-
       return (response as List)
           .map((e) => BannerModel.fromMap(e as Map<String, dynamic>))
           .toList();
@@ -24,14 +24,12 @@ class BannerService {
     }
   }
 
-  // ✅ Fetch all banners (including inactive - for admin)
   Future<List<BannerModel>> fetchAllBanners() async {
     try {
-      final response = await supabase
+      final response = await _supabase
           .from('banners')
           .select()
           .order('sort_order', ascending: true);
-
       return (response as List)
           .map((e) => BannerModel.fromMap(e as Map<String, dynamic>))
           .toList();
@@ -40,31 +38,36 @@ class BannerService {
     }
   }
 
-  // ✅ Upload image to Supabase Storage
-  Future<String> uploadBannerImage(XFile imageFile) async {
+  // ─── Pick Image ─────────────────────────────────────────────
+  Future<XFile?> pickImage() async {
     try {
-      final bytes = await imageFile.readAsBytes();
-      final fileExt = imageFile.name.split('.').last;
-      final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
-      final filePath = 'banners/$fileName';
-
-      await supabase.storage.from('banners').uploadBinary(
-        filePath,
-        bytes,
-        fileOptions: FileOptions(
-          contentType: 'image/$fileExt',
-          upsert: false,
-        ),
+      return await _picker.pickImage(
+        source      : ImageSource.gallery,
+        maxWidth    : 1920,
+        maxHeight   : 1080,
+        imageQuality: 85,
       );
-
-      final publicUrl = supabase.storage.from('banners').getPublicUrl(filePath);
-      return publicUrl;
     } catch (e) {
-      throw Exception('Failed to upload image: $e');
+      throw Exception('Failed to pick image: $e');
     }
   }
 
-  // ✅ Create new banner
+  // ─── Upload Banner ───────────────────────────────────────────
+  Future<String> uploadBannerImage(XFile imageFile) async {
+    try {
+      final file = File(imageFile.path);
+      final url  = await CloudinaryService.uploadImage(
+        file,
+        folder: CloudinaryService.folderBanners,
+      );
+      if (url == null) throw Exception('Cloudinary upload failed');
+      return url;
+    } catch (e) {
+      throw Exception('Failed to upload banner image: $e');
+    }
+  }
+
+  // ─── Create Banner ──────────────────────────────────────────
   Future<void> createBanner({
     required String imageUrl,
     String? title,
@@ -73,15 +76,14 @@ class BannerService {
     int sortOrder = 0,
   }) async {
     try {
-      final userId = supabase.auth.currentUser?.id;
-
-      await supabase.from('banners').insert({
-        'image_url': imageUrl,
-        'title': title,
-        'subtitle': subtitle,
-        'link_url': linkUrl,
+      final userId = _supabase.auth.currentUser?.id;
+      await _supabase.from('banners').insert({
+        'image_url' : imageUrl,
+        'title'     : title,
+        'subtitle'  : subtitle,
+        'link_url'  : linkUrl,
         'sort_order': sortOrder,
-        'is_active': true,
+        'is_active' : true,
         'created_by': userId,
       });
     } catch (e) {
@@ -89,73 +91,53 @@ class BannerService {
     }
   }
 
-  // ✅ Update banner
+  // ─── Update ─────────────────────────────────────────────────
   Future<void> updateBanner(BannerModel banner) async {
     try {
-      await supabase.from('banners').update({
-        'title': banner.title,
-        'subtitle': banner.subtitle,
-        'link_url': banner.linkUrl,
+      await _supabase.from('banners').update({
+        'title'     : banner.title,
+        'subtitle'  : banner.subtitle,
+        'link_url'  : banner.linkUrl,
         'sort_order': banner.sortOrder,
-        'is_active': banner.isActive,
+        'is_active' : banner.isActive,
       }).eq('id', banner.id);
     } catch (e) {
       throw Exception('Failed to update banner: $e');
     }
   }
 
-  // ✅ Toggle banner active status
+  // ─── Toggle Active ──────────────────────────────────────────
   Future<void> toggleBannerStatus(String id, bool isActive) async {
     try {
-      await supabase
+      await _supabase
           .from('banners')
-          .update({'is_active': isActive}).eq('id', id);
+          .update({'is_active': isActive})
+          .eq('id', id);
     } catch (e) {
       throw Exception('Failed to toggle banner status: $e');
     }
   }
 
-  // ✅ Delete banner (including storage file)
+  // ─── Delete Banner (Cloudinary + DB) ────────────────────────
   Future<void> deleteBanner(String id, String imageUrl) async {
     try {
-      // Extract file path from public URL
-      final uri = Uri.parse(imageUrl);
-      final pathSegments = uri.pathSegments;
-      final bannerIndex = pathSegments.indexOf('banners');
-
-      if (bannerIndex != -1 && bannerIndex < pathSegments.length - 1) {
-        final filePath = pathSegments.sublist(bannerIndex).join('/');
-
-        // Delete from storage
-        await supabase.storage.from('banners').remove([filePath]);
+      // ১. Cloudinary থেকে আগে delete করো
+      if (imageUrl.isNotEmpty) {
+        await CloudinaryService.deleteFile(imageUrl, resourceType: 'image');
       }
 
-      // Delete from database
-      await supabase.from('banners').delete().eq('id', id);
+      // ২. DB থেকে delete করো
+      await _supabase.from('banners').delete().eq('id', id);
     } catch (e) {
       throw Exception('Failed to delete banner: $e');
     }
   }
 
-  // ✅ Pick image from gallery
-  Future<XFile?> pickImage() async {
-    try {
-      return await _picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
-      );
-    } catch (e) {
-      throw Exception('Failed to pick image: $e');
-    }
-  }
-
-  // ✅ Reorder banners
+  // ─── Reorder ────────────────────────────────────────────────
   Future<void> reorderBanners(List<BannerModel> banners) async {
     try {
       for (int i = 0; i < banners.length; i++) {
-        await supabase
+        await _supabase
             .from('banners')
             .update({'sort_order': i})
             .eq('id', banners[i].id);
@@ -163,5 +145,14 @@ class BannerService {
     } catch (e) {
       throw Exception('Failed to reorder banners: $e');
     }
+  }
+
+  // ─── URL Helper ─────────────────────────────────────────────
+  String getBannerUrl(String? rawUrl) {
+    if (rawUrl == null || rawUrl.isEmpty) return '';
+    if (rawUrl.contains('cloudinary.com')) {
+      return CloudinaryService.optimizeUrl(rawUrl, width: 800);
+    }
+    return rawUrl;
   }
 }

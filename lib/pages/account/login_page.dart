@@ -2,6 +2,12 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'otp_verify_page.dart';
+import 'forgot_password_page.dart';
+import 'package:css/pages/SettingsPage/mfa_login_verify_page.dart';
+import 'package:css/pages/SettingsPage/mfa_setup_page.dart';
+import 'package:css/services/activity_logger.dart';
+import 'dart:io' show Platform;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,7 +24,6 @@ class _LoginPageState extends State<LoginPage> {
   bool loading = false;
   bool obscure = true;
 
-  // ================= LOGIN LOGIC =================
   Future<void> login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -30,38 +35,69 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       setState(() => loading = true);
-
-      // ⚡ যোগ করা হয়েছে: ভাইব্রেশন ফিডব্যাক
       HapticFeedback.mediumImpact();
 
+      // Step 1: Password দিয়ে sign in করো
       final authRes = await supabase.auth.signInWithPassword(
         email: email,
         password: password,
       );
+      if (authRes.user == null) throw const AuthException('Login failed');
 
-      final user = authRes.user;
-      if (user == null) {
-        throw const AuthException('Login failed');
-      }
+// ✅ Login success log
+      await ActivityLogger.log(
+        activityType: 'login_success',
+        device: Platform.isAndroid ? 'Android' : Platform.isIOS ? 'iOS' : 'Unknown',
+      );
 
-      // 🔐 প্রোফাইল থেকে রোল ফেচ
-      await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
+      // Step 2: Sign in সফল — এখন MFA check করো (session থাকা অবস্থায়)
+      final factors = await supabase.auth.mfa.listFactors();
+      final hasMfa =
+      factors.all.any((f) => f.status == FactorStatus.verified);
+
+      // Step 3: Sign out করো (verify না হওয়া পর্যন্ত access দেবো না)
+      await supabase.auth.signOut();
 
       if (!mounted) return;
 
-      // ✅ ফেসবুক-স্টাইল: পুরোনো সব পেজ মুছে সরাসরি হোম
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        '/home',
-            (_) => false,
-      );
+      if (hasMfa) {
+        // ── MFA চালু আছে → Authenticator code চাও ──────────────────────────
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MFALoginVerifyPage(
+              email: email,
+              password: password,
+            ),
+          ),
+        );
+      } else {
+        // ── MFA নেই → Email OTP পাঠাও ────────────────────────────────────────
+        await supabase.auth.signInWithOtp(
+          email: email,
+          shouldCreateUser: false,
+        );
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => OtpVerifyPage(email: email),
+          ),
+        );
+      }
     } on AuthException catch (e) {
+      // ✅ Login failed log
+      await ActivityLogger.log(
+        activityType: 'login_failed',
+        detail: 'wrong_pass',
+        device: Platform.isAndroid ? 'Android' : Platform.isIOS ? 'iOS' : 'Unknown',
+      );
       _showMessage(e.message);
     } catch (_) {
+      await ActivityLogger.log(
+        activityType: 'login_failed',
+        detail: 'wrong_pass',
+      );
       _showMessage('Invalid credentials or network error');
     } finally {
       if (mounted) setState(() => loading = false);
@@ -75,8 +111,8 @@ class _LoginPageState extends State<LoginPage> {
         content: Text(msg),
         backgroundColor: Colors.redAccent,
         behavior: SnackBarBehavior.floating,
-        // ⚡ যোগ করা হয়েছে: স্টাইলিশ লুক
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape:
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(12),
       ),
     );
@@ -89,7 +125,6 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // ================= UI BUILD =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -112,7 +147,7 @@ class _LoginPageState extends State<LoginPage> {
             colors: [
               Color(0xFF0F2027),
               Color(0xFF203A43),
-              Color(0xFF2C5364)
+              Color(0xFF2C5364),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -193,7 +228,29 @@ class _LoginPageState extends State<LoginPage> {
                                   icon: Icons.lock_outline,
                                   isPassword: true,
                                 ),
-                                const SizedBox(height: 24),
+                                const SizedBox(height: 12),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                          const ForgotPasswordPage(),
+                                        ),
+                                      );
+                                    },
+                                    child: const Text(
+                                      'Forgot Password?',
+                                      style: TextStyle(
+                                        color: Colors.cyanAccent,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
                                 SizedBox(
                                   width: double.infinity,
                                   height: 56,
@@ -204,8 +261,9 @@ class _LoginPageState extends State<LoginPage> {
                                       foregroundColor:
                                       const Color(0xFF0F2027),
                                       shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                          BorderRadius.circular(16)),
+                                        borderRadius:
+                                        BorderRadius.circular(16),
+                                      ),
                                     ),
                                     child: loading
                                         ? const SizedBox(
@@ -231,7 +289,8 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 40),
                       const Text(
                         'Conscious Student Society © 2026',
-                        style: TextStyle(color: Colors.white24, fontSize: 12),
+                        style:
+                        TextStyle(color: Colors.white24, fontSize: 12),
                       ),
                     ],
                   ),
@@ -262,8 +321,10 @@ class _LoginPageState extends State<LoginPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label.toUpperCase(),
-            style: const TextStyle(color: Colors.white38, fontSize: 10)),
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(color: Colors.white38, fontSize: 10),
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: controller,
@@ -281,8 +342,7 @@ class _LoginPageState extends State<LoginPage> {
                     : Icons.visibility_outlined,
                 color: Colors.white38,
               ),
-              onPressed: () =>
-                  setState(() => obscure = !obscure),
+              onPressed: () => setState(() => obscure = !obscure),
             )
                 : null,
             filled: true,
@@ -294,8 +354,8 @@ class _LoginPageState extends State<LoginPage> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide:
-              const BorderSide(color: Colors.cyanAccent, width: 1.5),
+              borderSide: const BorderSide(
+                  color: Colors.cyanAccent, width: 1.5),
             ),
           ),
         ),

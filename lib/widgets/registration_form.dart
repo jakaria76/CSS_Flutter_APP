@@ -1,26 +1,23 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart'; // পাথ নিশ্চিত করুন
 
 class RegistrationForm extends StatelessWidget {
   final GlobalKey<FormState> formKey;
-
   final TextEditingController nameCtrl;
   final TextEditingController mobileCtrl;
   final TextEditingController emailCtrl;
   final TextEditingController instituteCtrl;
   final TextEditingController classCtrl;
   final TextEditingController whyCtrl;
-
   final String gender;
   final bool willVolunteer;
-
   final ValueChanged<String?> onGenderChanged;
   final ValueChanged<bool?> onVolunteerChanged;
   final VoidCallback onPickImage;
   final VoidCallback onSubmit;
-
   final bool isPaid;
-  final bool hasImage; // ছবি সিলেক্ট করা হয়েছে কিনা তা বোঝার জন্য নতুন প্যারামিটার
+  final bool hasImage;
 
   const RegistrationForm({
     super.key,
@@ -43,36 +40,47 @@ class RegistrationForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildForm(context),
+      ),
+    );
+  }
+
+  Widget _buildForm(BuildContext context) {
+    final isDark = SC.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+    final fieldFillColor = isDark ? Colors.black.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.03);
+    final borderColor = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.08);
+
     return Form(
       key: formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // গ্লাস কার্ডের ভেতরে ইনপুট ফিল্ডগুলো রাখা হয়েছে
-          _buildGlassSection([
-            _buildField(nameCtrl, 'Full Name', Icons.person_outline),
-            _buildField(mobileCtrl, 'Mobile Number', Icons.phone_android_outlined, type: TextInputType.phone),
-            _buildField(emailCtrl, 'Email Address', Icons.email_outlined, type: TextInputType.emailAddress, required: false),
+          _buildGlassSection(isDark, [
+            _buildField(nameCtrl, SC.tr('full_name'), Icons.person_outline, isDark, textColor, fieldFillColor, borderColor),
+            _buildField(mobileCtrl, SC.tr('mobile_number'), Icons.phone_android_outlined, isDark, textColor, fieldFillColor, borderColor, type: TextInputType.phone),
+            _buildField(emailCtrl, SC.tr('email_address'), Icons.email_outlined, isDark, textColor, fieldFillColor, borderColor, type: TextInputType.emailAddress, required: false),
 
-            _buildDropdown(),
+            _buildDropdown(isDark, textColor, fieldFillColor, borderColor),
 
-            _buildField(instituteCtrl, 'Institute Name', Icons.school_outlined),
-            _buildField(classCtrl, 'Class / Year', Icons.grade_outlined),
-            _buildField(whyCtrl, 'Why do you want to join?', Icons.chat_bubble_outline, maxLines: 3),
+            _buildField(instituteCtrl, SC.tr('institute_name'), Icons.school_outlined, isDark, textColor, fieldFillColor, borderColor),
+            _buildField(classCtrl, SC.tr('class_year'), Icons.grade_outlined, isDark, textColor, fieldFillColor, borderColor),
+            _buildField(whyCtrl, SC.tr('why_join'), Icons.chat_bubble_outline, isDark, textColor, fieldFillColor, borderColor, maxLines: 3),
 
-            _buildVolunteerTile(),
+            _buildVolunteerTile(isDark, textColor),
           ]),
-
           const SizedBox(height: 25),
-
-          // ফটো আপলোড এবং সাবমিট বাটন সেকশন
-          _buildActionButtons(),
+          _buildActionButtons(isDark, textColor),
         ],
       ),
     );
   }
 
-  Widget _buildGlassSection(List<Widget> children) {
+  Widget _buildGlassSection(bool isDark, List<Widget> children) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -80,9 +88,9 @@ class RegistrationForm extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white.withValues(alpha: 0.8),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
+            border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05)),
           ),
           child: Column(children: children),
         ),
@@ -90,102 +98,98 @@ class RegistrationForm extends StatelessWidget {
     );
   }
 
-  Widget _buildField(TextEditingController ctrl, String label, IconData icon, {TextInputType type = TextInputType.text, bool required = true, int maxLines = 1}) {
+  Widget _buildField(TextEditingController ctrl, String label, IconData icon, bool isDark, Color textColor, Color fill, Color border, {TextInputType type = TextInputType.text, bool required = true, int maxLines = 1}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: ctrl,
         keyboardType: type,
         maxLines: maxLines,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
+        style: TextStyle(color: textColor, fontSize: 14),
         decoration: InputDecoration(
           labelText: label.toUpperCase(),
-          labelStyle: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.1),
-          prefixIcon: Icon(icon, color: Colors.cyanAccent.withOpacity(0.6), size: 18),
+          labelStyle: TextStyle(color: textColor.withValues(alpha: 0.4), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.1),
+          prefixIcon: Icon(icon, color: SC.cyan.withValues(alpha: 0.6), size: 18),
           filled: true,
-          fillColor: Colors.black.withOpacity(0.2),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.05))),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.cyanAccent, width: 1)),
+          fillColor: fill,
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: border)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: SC.cyan, width: 1)),
         ),
-        validator: required ? (v) => v == null || v.trim().isEmpty ? 'Required' : null : null,
+        validator: required ? (v) => v == null || v.trim().isEmpty ? SC.tr('required_error') : null : null,
       ),
     );
   }
 
-  Widget _buildDropdown() {
+  Widget _buildDropdown(bool isDark, Color textColor, Color fill, Color border) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: DropdownButtonFormField<String>(
         value: gender.isEmpty ? null : gender,
-        dropdownColor: const Color(0xFF203A43),
-        style: const TextStyle(color: Colors.white),
+        dropdownColor: isDark ? const Color(0xFF203A43) : Colors.white,
+        style: TextStyle(color: textColor),
         decoration: InputDecoration(
-          labelText: 'GENDER',
-          labelStyle: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold),
-          prefixIcon: Icon(Icons.wc, color: Colors.cyanAccent.withOpacity(0.6), size: 18),
+          labelText: SC.tr('gender_label'),
+          labelStyle: TextStyle(color: textColor.withValues(alpha: 0.4), fontSize: 10, fontWeight: FontWeight.bold),
+          prefixIcon: Icon(Icons.wc, color: SC.cyan.withValues(alpha: 0.6), size: 18),
           filled: true,
-          fillColor: Colors.black.withOpacity(0.2),
-          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.05))),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.cyanAccent)),
+          fillColor: fill,
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: border)),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: SC.cyan)),
         ),
-        items: const [
-          DropdownMenuItem(value: 'Male', child: Text('Male')),
-          DropdownMenuItem(value: 'Female', child: Text('Female')),
-          DropdownMenuItem(value: 'Other', child: Text('Other')),
+        items: [
+          DropdownMenuItem(value: 'Male', child: Text(SC.tr('male'))),
+          DropdownMenuItem(value: 'Female', child: Text(SC.tr('female'))),
+          DropdownMenuItem(value: 'Other', child: Text(SC.tr('other'))),
         ],
         onChanged: onGenderChanged,
       ),
     );
   }
 
-  Widget _buildVolunteerTile() {
+  Widget _buildVolunteerTile(bool isDark, Color textColor) {
     return Theme(
-      data: ThemeData(unselectedWidgetColor: Colors.white38),
+      data: ThemeData(unselectedWidgetColor: textColor.withValues(alpha: 0.4)),
       child: CheckboxListTile(
         value: willVolunteer,
         onChanged: onVolunteerChanged,
-        title: const Text('I want to volunteer', style: TextStyle(color: Colors.white70, fontSize: 13)),
-        activeColor: Colors.cyanAccent,
-        checkColor: const Color(0xFF0F2027),
+        title: Text(SC.tr('want_volunteer'), style: TextStyle(color: textColor.withValues(alpha: 0.7), fontSize: 13)),
+        activeColor: SC.cyan,
+        checkColor: isDark ? const Color(0xFF0F2027) : Colors.white,
         contentPadding: EdgeInsets.zero,
         controlAffinity: ListTileControlAffinity.leading,
       ),
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(bool isDark, Color textColor) {
     return Column(
       children: [
-        // ফটো আপলোড বাটন
         OutlinedButton.icon(
           onPressed: onPickImage,
-          icon: Icon(hasImage ? Icons.check_circle : Icons.add_a_photo_outlined, color: hasImage ? Colors.greenAccent : Colors.cyanAccent),
-          label: Text(hasImage ? 'PHOTO SELECTED' : 'UPLOAD PHOTO', style: const TextStyle(letterSpacing: 1)),
+          icon: Icon(hasImage ? Icons.check_circle : Icons.add_a_photo_outlined, color: hasImage ? SC.green : SC.cyan),
+          label: Text(hasImage ? SC.tr('photo_selected') : SC.tr('upload_photo'), style: const TextStyle(letterSpacing: 1)),
           style: OutlinedButton.styleFrom(
             minimumSize: const Size(double.infinity, 50),
-            side: BorderSide(color: hasImage ? Colors.greenAccent.withOpacity(0.5) : Colors.cyanAccent.withOpacity(0.3)),
-            foregroundColor: Colors.white,
+            side: BorderSide(color: hasImage ? SC.green.withValues(alpha: 0.5) : SC.cyan.withValues(alpha: 0.3)),
+            foregroundColor: textColor,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
-
         const SizedBox(height: 20),
-
-        // মেইন সাবমিট বাটন
         SizedBox(
           width: double.infinity,
           height: 56,
           child: ElevatedButton(
             onPressed: onSubmit,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.cyanAccent,
-              foregroundColor: const Color(0xFF0F2027),
+              backgroundColor: SC.cyan,
+              foregroundColor: isDark ? const Color(0xFF0F2027) : Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               elevation: 8,
-              shadowColor: Colors.cyanAccent.withOpacity(0.4),
+              shadowColor: SC.cyan.withValues(alpha: 0.4),
             ),
             child: Text(
-              isPaid ? 'PROCEED TO PAYMENT' : 'REGISTER FOR FREE',
+              isPaid ? SC.tr('proceed_payment') : SC.tr('register_free'),
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 1.2),
             ),
           ),

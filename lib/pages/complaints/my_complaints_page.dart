@@ -1,9 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:css/models/complaint_model.dart';
 import 'package:css/services/complaint_service.dart';
 import 'complaint_form_page.dart';
 import 'complaint_detail_page.dart';
+import '../SettingsPage/settings_constants.dart'; // পাথ চেক করুন
 
 class MyComplaintsPage extends StatefulWidget {
   const MyComplaintsPage({super.key});
@@ -25,6 +27,7 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
   }
 
   Future<void> _loadComplaints() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -42,23 +45,11 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _errorMessage = 'তথ্য লোড করতে সমস্যা হয়েছে: ${e.toString()}';
+          _errorMessage = SC.tr('load_error');
         });
-        _showSnackBar('তথ্য লোড করতে সমস্যা হয়েছে', isError: true);
+        SC.toast(context, SC.tr('load_error'), SC.red);
       }
     }
-  }
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 3),
-      ),
-    );
   }
 
   Future<void> _navigateToForm() async {
@@ -68,143 +59,88 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     );
 
     if (result == true) {
-      _loadComplaints(); // Refresh list
+      _loadComplaints();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F2027),
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.arrow_back, color: Colors.white),
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'আমার মতামত',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _navigateToForm,
-        backgroundColor: Colors.cyanAccent,
-        foregroundColor: const Color(0xFF0F2027),
-        icon: const Icon(Icons.add_rounded, size: 24),
-        label: const Text(
-          'নতুন মতামত',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: Stack(
-        children: [
-          // Background
-          Positioned(
-            top: -50,
-            left: -50,
-            child: Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.cyanAccent.withOpacity(0.1),
-                    blurRadius: 100,
-                    spreadRadius: 50,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          SafeArea(
-            child: _isLoading
-                ? const Center(
-              child: CircularProgressIndicator(
-                color: Colors.cyanAccent,
-              ),
-            )
-                : _errorMessage != null
-                ? _buildErrorState()
-                : _complaints.isEmpty
-                ? _buildEmptyState()
-                : RefreshIndicator(
-              onRefresh: _loadComplaints,
-              color: Colors.cyanAccent,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(20),
-                itemCount: _complaints.length,
-                itemBuilder: (context, index) {
-                  return _buildComplaintCard(_complaints[index]);
-                },
-              ),
-            ),
-          ),
-        ],
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildScaffold(),
       ),
     );
   }
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildScaffold() {
+    final isDark = SC.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+    final subTextColor = isDark ? Colors.white.withOpacity(0.5) : const Color(0xFF4A5568);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: isDark ? const Color(0xFF0F2027) : const Color(0xFFF0F4FF),
+        extendBodyBehindAppBar: true,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: Container(
+            margin: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: (isDark ? Colors.white : Colors.black).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              icon: Icon(Icons.arrow_back, color: textColor),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          title: Text(
+            SC.tr('my_complaints_title'),
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1,
+            ),
+          ),
+          centerTitle: true,
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _navigateToForm,
+          backgroundColor: Colors.cyanAccent,
+          foregroundColor: const Color(0xFF0F2027),
+          icon: const Icon(Icons.add_rounded, size: 24),
+          label: Text(
+            SC.tr('new_complaint_btn'),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        body: Stack(
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 80,
-              color: Colors.redAccent.withOpacity(0.5),
+            Positioned(
+              top: -50,
+              left: -50,
+              child: SC.blob(200, Colors.cyanAccent.withOpacity(0.1)),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'সমস্যা হয়েছে',
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage ?? 'কিছু ভুল হয়েছে',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: _loadComplaints,
-              icon: const Icon(Icons.refresh),
-              label: const Text('আবার চেষ্টা করুন'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.cyanAccent,
-                foregroundColor: const Color(0xFF0F2027),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            SafeArea(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: Colors.cyanAccent))
+                  : _errorMessage != null
+                  ? _buildErrorState(textColor, subTextColor)
+                  : _complaints.isEmpty
+                  ? _buildEmptyState(subTextColor)
+                  : RefreshIndicator(
+                onRefresh: _loadComplaints,
+                color: Colors.cyanAccent,
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: _complaints.length,
+                  itemBuilder: (context, index) {
+                    return _buildComplaintCard(_complaints[index], isDark, textColor, subTextColor);
+                  },
                 ),
               ),
             ),
@@ -214,39 +150,58 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildErrorState(Color textColor, Color subTextColor) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 80, color: Colors.redAccent.withOpacity(0.5)),
+            const SizedBox(height: 16),
+            Text(
+              SC.tr('load_error'),
+              style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadComplaints,
+              icon: const Icon(Icons.refresh),
+              label: Text(SC.tr('retry')),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.cyanAccent,
+                foregroundColor: const Color(0xFF0F2027),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(Color subTextColor) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.inbox_rounded,
-            size: 80,
-            color: Colors.white.withOpacity(0.2),
-          ),
+          Icon(Icons.inbox_rounded, size: 80, color: subTextColor.withOpacity(0.2)),
           const SizedBox(height: 16),
           Text(
-            'কোনো মতামত নেই',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            SC.tr('no_complaints'),
+            style: TextStyle(color: subTextColor, fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
-            'নতুন মতামত জমা দিতে + বাটনে চাপুন',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.3),
-              fontSize: 12,
-            ),
+            SC.tr('add_new_desc'),
+            style: TextStyle(color: subTextColor.withOpacity(0.6), fontSize: 12),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildComplaintCard(Complaint complaint) {
+  Widget _buildComplaintCard(Complaint complaint, bool isDark, Color textColor, Color subTextColor) {
     Color statusColor;
     IconData statusIcon;
 
@@ -268,6 +223,8 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
         statusIcon = Icons.help_outline;
     }
 
+    final borderColor = isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.08);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 15),
       child: GestureDetector(
@@ -286,23 +243,19 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: SC.currentCardBg.withOpacity(0.7),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
-                ),
+                border: Border.all(color: borderColor),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header Row
                   Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: _getCategoryColor(complaint.category)
-                              .withOpacity(0.15),
+                          color: _getCategoryColor(complaint.category).withOpacity(0.15),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Icon(
@@ -318,118 +271,65 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
                           children: [
                             Text(
                               complaint.title,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: TextStyle(color: textColor, fontSize: 15, fontWeight: FontWeight.bold),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 4),
                             Text(
-                              complaint.getCategoryBangla(),
-                              style: TextStyle(
-                                color: _getCategoryColor(complaint.category),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              complaint.getCategoryBangla(), // অথবা SC.tr দিয়ে ক্যাটাগরি কি চেক করতে পারেন
+                              style: TextStyle(color: _getCategoryColor(complaint.category), fontSize: 11, fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: statusColor.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              statusIcon,
-                              color: statusColor,
-                              size: 14,
-                            ),
+                            Icon(statusIcon, color: statusColor, size: 14),
                             const SizedBox(width: 6),
                             Text(
                               complaint.getStatusBangla(),
-                              style: TextStyle(
-                                color: statusColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Description
                   Text(
                     complaint.description,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                      height: 1.4,
-                    ),
+                    style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 13, height: 1.4),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Footer
                   Row(
                     children: [
-                      Icon(
-                        Icons.access_time_rounded,
-                        size: 14,
-                        color: Colors.white.withOpacity(0.4),
-                      ),
+                      Icon(Icons.access_time_rounded, size: 14, color: subTextColor),
                       const SizedBox(width: 6),
                       Text(
                         _formatDate(complaint.createdAt),
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.4),
-                          fontSize: 11,
-                        ),
+                        style: TextStyle(color: subTextColor, fontSize: 11),
                       ),
                       const Spacer(),
-                      if (complaint.adminReply != null &&
-                          complaint.adminReply!.isNotEmpty)
+                      if (complaint.adminReply != null && complaint.adminReply!.isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: Colors.greenAccent.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: const Row(
+                          child: Row(
                             children: [
-                              Icon(
-                                Icons.reply_rounded,
-                                size: 12,
-                                color: Colors.greenAccent,
-                              ),
-                              SizedBox(width: 4),
-                              Text(
-                                'উত্তর দেওয়া হয়েছে',
-                                style: TextStyle(
-                                  color: Colors.greenAccent,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                              const Icon(Icons.reply_rounded, size: 12, color: Colors.greenAccent),
+                              const SizedBox(width: 4),
+                              Text(SC.tr('replied'), style: const TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -446,108 +346,33 @@ class _MyComplaintsPageState extends State<MyComplaintsPage> {
 
   Color _getCategoryColor(String category) {
     switch (category) {
-      case 'complaint':
-        return Colors.redAccent;
-      case 'suggestion':
-        return Colors.blueAccent;
-      case 'feedback':
-        return Colors.purpleAccent;
-      default:
-        return Colors.grey;
+      case 'complaint': return Colors.redAccent;
+      case 'suggestion': return Colors.blueAccent;
+      case 'feedback': return Colors.purpleAccent;
+      default: return Colors.grey;
     }
   }
 
   IconData _getCategoryIcon(String category) {
     switch (category) {
-      case 'complaint':
-        return Icons.error_outline_rounded;
-      case 'suggestion':
-        return Icons.lightbulb_outline_rounded;
-      case 'feedback':
-        return Icons.feedback_outlined;
-      default:
-        return Icons.comment_outlined;
+      case 'complaint': return Icons.error_outline_rounded;
+      case 'suggestion': return Icons.lightbulb_outline_rounded;
+      case 'feedback': return Icons.feedback_outlined;
+      default: return Icons.comment_outlined;
     }
   }
 
-  /// ✅ সঠিক বাংলা সময় ফরম্যাট
   String _formatDate(DateTime date) {
-    try {
-      final now = DateTime.now();
-      final difference = now.difference(date);
+    final now = DateTime.now();
+    final diff = now.difference(date);
 
-      // একই দিনে
-      if (difference.inDays == 0) {
-        if (difference.inHours == 0) {
-          if (difference.inMinutes == 0) {
-            return 'এখনই';
-          }
-          return '${difference.inMinutes} মিনিট আগে';
-        }
-        return '${difference.inHours} ঘণ্টা আগে';
-      }
-      // গতকাল
-      else if (difference.inDays == 1) {
-        return 'গতকাল';
-      }
-      // ৭ দিনের কম
-      else if (difference.inDays < 7) {
-        return '${difference.inDays} দিন আগে';
-      }
-      // ৩০ দিনের কম
-      else if (difference.inDays < 30) {
-        final weeks = (difference.inDays / 7).floor();
-        return '$weeks সপ্তাহ আগে';
-      }
-      // ১ বছরের কম
-      else if (difference.inDays < 365) {
-        final months = (difference.inDays / 30).floor();
-        return '$months মাস আগে';
-      }
-      // ১ বছরের বেশি
-      else {
-        final years = (difference.inDays / 365).floor();
-        return '$years বছর আগে';
-      }
-    } catch (e) {
-      // যদি কোনো error হয়, তাহলে standard date format দেখাও
-      return '${date.day}/${date.month}/${date.year}';
-    }
-  }
-
-  /// ✅ Alternative: পূর্ণ তারিখ ও সময় (যদি exact time চাও)
-  String _formatFullDate(DateTime date) {
-    final banglaMonths = [
-      'জানুয়ারি',
-      'ফেব্রুয়ারি',
-      'মার্চ',
-      'এপ্রিল',
-      'মে',
-      'জুন',
-      'জুলাই',
-      'আগস্ট',
-      'সেপ্টেম্বর',
-      'অক্টোবর',
-      'নভেম্বর',
-      'ডিসেম্বর'
-    ];
-
-    final hour = date.hour > 12 ? date.hour - 12 : date.hour;
-    final period = date.hour >= 12 ? 'PM' : 'AM';
-    final minute = date.minute.toString().padLeft(2, '0');
-
-    return '${date.day} ${banglaMonths[date.month - 1]} ${date.year}, $hour:$minute $period';
-  }
-
-  /// ✅ বাংলা সংখ্যায় রূপান্তর (optional, যদি পুরো বাংলা চাও)
-  String _toBanglaNumber(int number) {
-    const banglaDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-    return number
-        .toString()
-        .split('')
-        .map((digit) => int.tryParse(digit) != null
-        ? banglaDigits[int.parse(digit)]
-        : digit)
-        .join();
+    if (diff.inMinutes < 1) return SC.tr('just_now');
+    if (diff.inHours < 1) return SC.tr('min_ago').replaceAll('@min', diff.inMinutes.toString());
+    if (diff.inDays < 1) return SC.tr('hour_ago').replaceAll('@hour', diff.inHours.toString());
+    if (diff.inDays == 1) return SC.tr('yesterday');
+    if (diff.inDays < 7) return SC.tr('day_ago').replaceAll('@day', diff.inDays.toString());
+    if (diff.inDays < 30) return SC.tr('week_ago').replaceAll('@week', (diff.inDays / 7).floor().toString());
+    if (diff.inDays < 365) return SC.tr('month_ago').replaceAll('@month', (diff.inDays / 30).floor().toString());
+    return SC.tr('year_ago').replaceAll('@year', (diff.inDays / 365).floor().toString());
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../widgets/event_card.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class EventsSection extends StatelessWidget {
   final String title;
@@ -22,82 +23,152 @@ class EventsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildSection(context),
+      ),
+    );
+  }
+
+  Widget _buildSection(BuildContext context) {
+    final isDark = SC.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F1923);
+    final emptyBgColor = isDark
+        ? Colors.white.withValues(alpha: 0.04)
+        : Colors.black.withValues(alpha: 0.03);
+    final emptyBorderColor = isDark
+        ? Colors.white.withValues(alpha: 0.06)
+        : Colors.black.withValues(alpha: 0.07);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Section Header ──
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: titleColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                  ),
+                Row(
+                  children: [
+                    // Accent dot
+                    Container(
+                      width: 6,
+                      height: 6,
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: titleColor,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: titleColor.withValues(alpha: 0.5),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: titleColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                  ],
                 ),
                 if (events.isNotEmpty)
                   GestureDetector(
                     onTap: onViewAll,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        "সব দেখুন",
-                        style: TextStyle(
-                          color: Colors.cyanAccent,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                        color: SC.cyan.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: SC.cyan.withValues(alpha: 0.25),
+                          width: 1,
                         ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            SC.tr('view_all_btn'),
+                            style: TextStyle(
+                              color: SC.cyan,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 8,
+                            color: SC.cyan,
+                          ),
+                        ],
                       ),
                     ),
                   ),
               ],
             ),
           ),
+
+          const SizedBox(height: 4),
+
+          // ── Loading ──
           if (isLoading)
-            const Center(
+            Center(
               child: Padding(
-                padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(
-                  color: Colors.cyanAccent,
-                  strokeWidth: 1,
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    color: SC.cyan,
+                    strokeWidth: 1.5,
+                  ),
                 ),
               ),
             )
+
+          // ── Empty State ──
           else if (events.isEmpty)
-            _buildEmptyEventPlaceholder()
+            _buildEmptyState(emptyBgColor, emptyBorderColor)
+
+          // ── List ──
           else
             SizedBox(
-              height: 320,
+              height: 220,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.only(
-                  left: 15,
-                  right: 15,
-                  bottom: 15,
-                  top: 5,
-                ),
+                    left: 16, right: 16, bottom: 8, top: 4),
                 itemCount: events.length,
                 itemBuilder: (context, index) {
                   final event = events[index];
                   final bool past = _isPastEvent(event['start_datetime']);
+                  final int? eventId = _parseId(event['id']);
+
                   return Container(
-                    width: 280,
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                    child: _buildGlassEventWrapper(event, past),
+                    width: 230,
+                    margin: const EdgeInsets.symmetric(horizontal: 6),
+                    child: EventCard(
+                      event: event,
+                      isPast: past,
+                      onTap: eventId != null ? () => onEventTap(eventId) : null,
+                    ),
                   );
                 },
               ),
@@ -107,58 +178,50 @@ class EventsSection extends StatelessWidget {
     );
   }
 
-  Widget _buildGlassEventWrapper(Map<String, dynamic> event, bool past) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
-          ),
-          child: EventCard(
-            event: event,
-            isPast: past,
-            onTap: past ? null : () {
-              // Convert to int properly
-              final eventId = event['id'];
-              if (eventId != null) {
-                onEventTap(eventId is int ? eventId : int.parse(eventId.toString()));
-              }
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
   bool _isPastEvent(String? startDate) {
     if (startDate == null) return false;
-    final start = DateTime.parse(startDate).toLocal();
-    return start.isBefore(DateTime.now());
+    try {
+      return DateTime.parse(startDate).toLocal().isBefore(DateTime.now());
+    } catch (_) {
+      return false;
+    }
   }
 
-  Widget _buildEmptyEventPlaceholder() {
+  int? _parseId(dynamic id) {
+    if (id == null) return null;
+    if (id is int) return id;
+    return int.tryParse(id.toString());
+  }
+
+  Widget _buildEmptyState(Color bgColor, Color borderColor) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.02),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+          color: bgColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
         ),
-        child: const Center(
-          child: Text(
-            "No events found",
-            style: TextStyle(
-              color: Colors.white10,
-              fontSize: 12,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.event_busy_rounded,
+              size: 14,
+              color: SC.isDark ? Colors.white12 : Colors.black26,
             ),
-          ),
+            const SizedBox(width: 8),
+            Text(
+              SC.tr('no_events_found'),
+              style: TextStyle(
+                color: SC.isDark ? Colors.white12 : Colors.black26,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );

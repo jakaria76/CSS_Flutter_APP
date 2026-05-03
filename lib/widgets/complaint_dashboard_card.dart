@@ -1,12 +1,32 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../pages/complaints/my_complaints_page.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class ComplaintDashboardCard extends StatelessWidget {
   const ComplaintDashboardCard({super.key});
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildCard(context),
+      ),
+    );
+  }
+
+  Widget _buildCard(BuildContext context) {
+    final isDark = SC.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+    final subTextColor = isDark ? Colors.white.withValues(alpha: 0.6) : const Color(0xFF4A5568);
+    final cardBg = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.15)
+        : Colors.black.withValues(alpha: 0.08);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: GestureDetector(
@@ -25,24 +45,20 @@ class ComplaintDashboardCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.purpleAccent.withOpacity(0.15),
-                    Colors.cyanAccent.withOpacity(0.1),
-                  ],
-                ),
+                color: cardBg,
                 borderRadius: BorderRadius.circular(25),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.15),
-                  width: 1.5,
-                ),
-                boxShadow: [
+                border: Border.all(color: borderColor, width: 1.5),
+                boxShadow: isDark ? [
                   BoxShadow(
-                    color: Colors.purpleAccent.withOpacity(0.1),
+                    color: SC.purple.withValues(alpha: 0.1),
                     blurRadius: 20,
                     spreadRadius: 2,
+                  ),
+                ] : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
                   ),
                 ],
               ),
@@ -52,13 +68,13 @@ class ComplaintDashboardCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Colors.purpleAccent, Colors.cyanAccent],
+                      gradient: LinearGradient(
+                        colors: [SC.purple, SC.cyan],
                       ),
                       borderRadius: BorderRadius.circular(18),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.purpleAccent.withOpacity(0.3),
+                          color: SC.purple.withValues(alpha: 0.3),
                           blurRadius: 15,
                           spreadRadius: 1,
                         ),
@@ -78,10 +94,10 @@ class ComplaintDashboardCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'আপনার মতামত',
+                        Text(
+                          SC.tr('complaint_title'),
                           style: TextStyle(
-                            color: Colors.white,
+                            color: textColor,
                             fontSize: 18,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 0.5,
@@ -89,9 +105,9 @@ class ComplaintDashboardCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'আমাদের সাথে শেয়ার করুন',
+                          SC.tr('complaint_sub'),
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
+                            color: subTextColor,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -104,12 +120,12 @@ class ComplaintDashboardCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: textColor.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       Icons.arrow_forward_ios_rounded,
-                      color: Colors.white.withOpacity(0.8),
+                      color: textColor.withValues(alpha: 0.8),
                       size: 18,
                     ),
                   ),

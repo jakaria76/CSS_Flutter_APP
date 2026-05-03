@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class ImageCarousel extends StatefulWidget {
   final List<String> images;
@@ -27,6 +29,20 @@ class _ImageCarouselState extends State<ImageCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildCarousel(context),
+      ),
+    );
+  }
+
+  Widget _buildCarousel(BuildContext context) {
+    final isDark = SC.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+    final placeholderColor = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05);
+
     return Container(
       constraints: const BoxConstraints(maxHeight: 400),
       child: Stack(
@@ -45,19 +61,26 @@ class _ImageCarouselState extends State<ImageCarousel> {
                   fit: BoxFit.cover,
                   width: double.infinity,
                   placeholder: (context, url) => Container(
-                    color: Colors.white10,
-                    child: const Center(
+                    color: placeholderColor,
+                    child: Center(
                       child: CircularProgressIndicator(
-                        color: Colors.cyanAccent,
+                        color: SC.cyan,
                         strokeWidth: 2,
                       ),
                     ),
                   ),
                   errorWidget: (context, url, error) => Container(
-                    color: Colors.white10,
-                    child: const Icon(
-                      Icons.error_outline,
-                      color: Colors.redAccent,
+                    color: placeholderColor,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, color: Colors.redAccent, size: 32),
+                        const SizedBox(height: 8),
+                        Text(
+                          SC.tr('carousel_error'),
+                          style: TextStyle(color: textColor.withValues(alpha: 0.5), fontSize: 12),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -65,18 +88,15 @@ class _ImageCarouselState extends State<ImageCarousel> {
             },
           ),
 
-          // Page indicator
+          // Page indicator (e.g., 1/5)
           if (widget.images.length > 1)
             Positioned(
               bottom: 12,
               right: 12,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.6),
+                  color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -90,7 +110,7 @@ class _ImageCarouselState extends State<ImageCarousel> {
               ),
             ),
 
-          // Navigation arrows (optional)
+          // Navigation arrows
           if (widget.images.length > 1) ...[
             // Previous button
             if (_currentPage > 0)
@@ -99,24 +119,14 @@ class _ImageCarouselState extends State<ImageCarousel> {
                 top: 0,
                 bottom: 0,
                 child: Center(
-                  child: IconButton(
+                  child: _navButton(
+                    icon: Icons.chevron_left,
                     onPressed: () {
                       _pageController.previousPage(
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeInOut,
                       );
                     },
-                    icon: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.chevron_left,
-                        color: Colors.white,
-                      ),
-                    ),
                   ),
                 ),
               ),
@@ -128,29 +138,38 @@ class _ImageCarouselState extends State<ImageCarousel> {
                 top: 0,
                 bottom: 0,
                 child: Center(
-                  child: IconButton(
+                  child: _navButton(
+                    icon: Icons.chevron_right,
                     onPressed: () {
                       _pageController.nextPage(
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeInOut,
                       );
                     },
-                    icon: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.5),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.chevron_right,
-                        color: Colors.white,
-                      ),
-                    ),
                   ),
                 ),
               ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _navButton({required IconData icon, required VoidCallback onPressed}) {
+    return IconButton(
+      onPressed: onPressed,
+      icon: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.4),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Icon(
+          icon,
+          color: Colors.white,
+          size: 20,
+        ),
       ),
     );
   }

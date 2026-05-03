@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/post_model.dart';
 import '../widgets/post_card.dart';
 import '../pages/feed/post_detail_page.dart';
 import '../pages/feed/feed_page.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class DashboardPostSection extends StatelessWidget {
   final bool isLoading;
@@ -16,6 +18,24 @@ class DashboardPostSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildSection(context),
+      ),
+    );
+  }
+
+  Widget _buildSection(BuildContext context) {
+    final isDark = SC.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+    final subTextColor = isDark ? Colors.white.withValues(alpha: 0.6) : const Color(0xFF4A5568);
+    final cardBg = isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.08);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -30,55 +50,44 @@ class DashboardPostSection extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.cyanAccent.withOpacity(0.3),
-                          Colors.purpleAccent.withOpacity(0.3),
-                        ],
-                      ),
+                      color: SC.cyan.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.campaign,
-                      color: Colors.cyanAccent,
+                      color: SC.cyan,
                       size: 20,
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    'ADMIN UPDATES',
+                  Text(
+                    SC.tr('admin_updates_title'),
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.cyanAccent,
-                      letterSpacing: 1.2,
+                      color: isDark ? SC.cyan : textColor,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ],
               ),
               TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const FeedPage(),
-                    ),
-                  );
-                },
+                onPressed: () => _navigateToFeed(context),
                 child: Row(
-                  children: const [
+                  children: [
                     Text(
-                      'View All',
+                      SC.tr('view_all_short'),
                       style: TextStyle(
-                        color: Colors.cyanAccent,
+                        color: SC.cyan,
                         fontWeight: FontWeight.w600,
+                        fontSize: 13,
                       ),
                     ),
-                    SizedBox(width: 4),
+                    const SizedBox(width: 4),
                     Icon(
                       Icons.arrow_forward_ios,
-                      color: Colors.cyanAccent,
-                      size: 14,
+                      color: SC.cyan,
+                      size: 12,
                     ),
                   ],
                 ),
@@ -89,11 +98,11 @@ class DashboardPostSection extends StatelessWidget {
 
         // Loading State
         if (isLoading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 40),
             child: Center(
               child: CircularProgressIndicator(
-                color: Colors.cyanAccent,
+                color: SC.cyan,
                 strokeWidth: 2,
               ),
             ),
@@ -105,37 +114,37 @@ class DashboardPostSection extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.03),
+              color: cardBg,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.1),
-              ),
+              border: Border.all(color: borderColor),
             ),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.post_add_outlined,
-                  size: 56,
-                  color: Colors.white.withOpacity(0.2),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'কোনো পোস্ট নেই',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+            child: Center(
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.post_add_outlined,
+                    size: 56,
+                    color: subTextColor.withValues(alpha: 0.3),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'এখনো কোনো আপডেট পোস্ট করা হয়নি',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.4),
-                    fontSize: 13,
+                  const SizedBox(height: 16),
+                  Text(
+                    SC.tr('no_posts'),
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  Text(
+                    SC.tr('no_updates_yet'),
+                    style: TextStyle(
+                      color: subTextColor,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -156,39 +165,32 @@ class DashboardPostSection extends StatelessWidget {
             },
           ),
 
-        // See More Button (if posts exist)
+        // See More Button
         if (!isLoading && posts.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             child: Center(
               child: TextButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const FeedPage(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.arrow_forward, size: 18),
-                label: const Text(
-                  'আরো পোস্ট দেখুন',
+                onPressed: () => _navigateToFeed(context),
+                icon: Icon(Icons.arrow_forward, size: 18, color: SC.cyan),
+                label: Text(
+                  SC.tr('see_more_posts'),
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
+                    color: SC.cyan,
                   ),
                 ),
                 style: TextButton.styleFrom(
-                  foregroundColor: Colors.cyanAccent,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
                     vertical: 12,
                   ),
-                  backgroundColor: Colors.cyanAccent.withOpacity(0.1),
+                  backgroundColor: SC.cyan.withValues(alpha: 0.1),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                     side: BorderSide(
-                      color: Colors.cyanAccent.withOpacity(0.3),
+                      color: SC.cyan.withValues(alpha: 0.3),
                     ),
                   ),
                 ),
@@ -199,12 +201,17 @@ class DashboardPostSection extends StatelessWidget {
     );
   }
 
+  void _navigateToFeed(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const FeedPage()),
+    );
+  }
+
   void _navigateToPostDetail(BuildContext context, Post post) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => PostDetailPage(post: post),
-      ),
+      MaterialPageRoute(builder: (context) => PostDetailPage(post: post)),
     );
   }
 }

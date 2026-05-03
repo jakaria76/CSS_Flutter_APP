@@ -1,9 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:url_launcher/url_launcher.dart'; // ফোন ও ইমেইল ক্লিক করার জন্য এটি ব্যবহার করতে পারেন
+import 'package:url_launcher/url_launcher.dart';
 import '../models/about_models.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 const LatLng cssLocation = LatLng(24.069222, 89.801083);
 
@@ -15,343 +17,190 @@ class FooterSection extends StatefulWidget {
   State<FooterSection> createState() => _FooterSectionState();
 }
 
-class _FooterSectionState extends State<FooterSection> {
+class _FooterSectionState extends State<FooterSection> with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
+  late AnimationController _animCtrl;
+  late Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..forward();
+    _fadeAnim = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.contactInfo == null) return const SizedBox.shrink();
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildFooter(context),
+      ),
+    );
+  }
 
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 40, 20, 30),
+  Widget _buildFooter(BuildContext context) {
+    final isDark = SC.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+    final subTextColor = isDark ? Colors.white.withValues(alpha: 0.35) : const Color(0xFF4A5568);
+    final cardBg = isDark ? SC.cardBg : Colors.white;
+    final borderColor = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.08);
+
+    return FadeTransition(
+      opacity: _fadeAnim,
       child: Column(
         children: [
-          /// ================= SATELLITE MAP (Original) =================
-          Container(
-            height: 280,
-            margin: const EdgeInsets.only(bottom: 28),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.greenAccent.withOpacity(0.18),
-                  blurRadius: 26,
-                  offset: const Offset(0, 10),
-                ),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.5),
-                  blurRadius: 30,
-                  offset: const Offset(0, 15),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(28),
-              child: Stack(
-                children: [
-                  FlutterMap(
-                    mapController: _mapController,
-                    options: const MapOptions(
-                      initialCenter: cssLocation,
-                      initialZoom: 16,
-                      minZoom: 4,
-                      maxZoom: 18,
-                      interactionOptions:
-                      InteractionOptions(flags: InteractiveFlag.all),
-                    ),
-                    children: [
-                      TileLayer(
-                        urlTemplate:
-                        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                        userAgentPackageName: 'com.css.mobile',
-                        retinaMode: true,
-                      ),
-                      TileLayer(
-                        urlTemplate:
-                        'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-                        userAgentPackageName: 'com.css.mobile',
-                        retinaMode: true,
-                      ),
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            point: cssLocation,
-                            width: 80,
-                            height: 80,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.redAccent.withOpacity(0.6),
-                                    blurRadius: 18,
-                                    spreadRadius: 4,
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.location_on_rounded,
-                                size: 42,
-                                color: Colors.redAccent,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.12),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 15,
-                    left: 15,
-                    child: _buildMapChip(),
-                  ),
-                  Positioned(
-                    bottom: 15,
-                    right: 15,
-                    child: Column(
-                      children: [
-                        _zoomBtn(Icons.add, 1),
-                        const SizedBox(height: 8),
-                        _zoomBtn(Icons.remove, -1),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          /// ================= DESIGNER CONTACT CARD =================
-          _buildDesignerContactCard(),
-        ],
-      ),
-    );
-  }
-
-  /// ম্যাপের উপরের চিপ উইজেট
-  Widget _buildMapChip() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.greenAccent, width: 0.6),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.satellite_rounded, size: 16, color: Colors.greenAccent),
-          SizedBox(width: 8),
-          Text(
-            "Satellite Map",
-            style: TextStyle(
-                color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// ম্যাপ জুম বাটন
-  Widget _zoomBtn(IconData icon, double delta) {
-    return GestureDetector(
-      onTap: () => _mapController.move(
-        _mapController.camera.center,
-        _mapController.camera.zoom + delta,
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 5)],
-        ),
-        child: Icon(icon, size: 20, color: Colors.black87),
-      ),
-    );
-  }
-
-  /// সম্পূর্ণ নতুন ডিজাইনের কন্টাক্ট কার্ড
-  Widget _buildDesignerContactCard() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(35),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 40,
-            offset: const Offset(0, 20),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(35),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: Container(
-            padding: const EdgeInsets.all(25),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.04),
-              borderRadius: BorderRadius.circular(35),
-              border: Border.all(color: Colors.white.withOpacity(0.08)),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withOpacity(0.06),
-                  Colors.white.withOpacity(0.01),
-                ],
-              ),
-            ),
-            child: Column(
+          // ── Section Label ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 40, 24, 20),
+            child: Row(
               children: [
-                // Header (Optional)
-                Row(
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: Colors.cyanAccent,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    const Text(
-                      "GET IN TOUCH",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 25),
-
-                // কন্টাক্ট আইটেমগুলো
-                _designerFooterItem(
-                  Icons.map_rounded,
-                  widget.contactInfo!.address,
-                  "OUR HEADQUARTERS",
-                  Colors.orangeAccent,
-                ),
-                _buildDivider(),
-                _designerFooterItem(
-                  Icons.phone_iphone_rounded,
-                  widget.contactInfo!.phone,
-                  "DIRECT HOTLINE",
-                  Colors.greenAccent,
-                  onTap: () => launchUrl(Uri.parse('tel:${widget.contactInfo!.phone}')),
-                ),
-                _buildDivider(),
-                _designerFooterItem(
-                  Icons.alternate_email_rounded,
-                  widget.contactInfo!.email,
-                  "OFFICIAL EMAIL",
-                  Colors.cyanAccent,
-                  onTap: () => launchUrl(Uri.parse('mailto:${widget.contactInfo!.email}')),
-                ),
-
-                const SizedBox(height: 10),
-                const Text(
-                  "© 2026 CONSCIOUS STUDENT SOCIETY",
-                  style: TextStyle(
-                    color: Colors.white10,
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
+                Container(
+                  width: 46, height: 46,
+                  decoration: BoxDecoration(
+                    color: SC.cyan.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: SC.cyan.withValues(alpha: 0.25)),
                   ),
+                  child: Icon(Icons.contacts_rounded, color: SC.cyan, size: 22),
                 ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _designerFooterItem(
-      IconData icon, String text, String label, Color color, {VoidCallback? onTap}) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        splashColor: color.withOpacity(0.1),
-        highlightColor: Colors.transparent,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          child: Row(
-            children: [
-              // আইকন বক্স উইথ নিওন গ্লো
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: color.withOpacity(0.2)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: color.withOpacity(0.1),
-                      blurRadius: 10,
-                      spreadRadius: 1,
-                    ),
-                  ],
-                ),
-                child: Icon(icon, size: 22, color: color),
-              ),
-              const SizedBox(width: 18),
-
-              // টেক্সট কন্টেন্ট
-              Expanded(
-                child: Column(
+                const SizedBox(width: 14),
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      label,
-                      style: TextStyle(
-                        color: color.withOpacity(0.6),
-                        fontSize: 8,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.5,
-                      ),
+                      SC.tr('contact_us_title'),
+                      style: TextStyle(color: SC.cyan, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      text,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        height: 1.4,
-                      ),
+                    const SizedBox(height: 3),
+                    Text(SC.tr('contact_us_sub'), style: TextStyle(color: subTextColor, fontSize: 11)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // ── Map Container ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: _buildMap(isDark, borderColor),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Contact Cards ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: _buildContactCards(isDark, textColor, subTextColor, cardBg, borderColor),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Social Row ──
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: _buildSocialRow(isDark, subTextColor, cardBg, borderColor),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Bottom Bar ──
+          _buildBottomBar(subTextColor, borderColor),
+
+          const SizedBox(height: 30),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMap(bool isDark, Color borderColor) {
+    return Container(
+      height: 260,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: borderColor),
+        boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 10))],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: Stack(
+          children: [
+            FlutterMap(
+              mapController: _mapController,
+              options: const MapOptions(initialCenter: cssLocation, initialZoom: 16),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                  userAgentPackageName: 'com.css.mobile',
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: cssLocation,
+                      width: 80, height: 80,
+                      child: Icon(Icons.location_on_rounded, size: 42, color: SC.red),
                     ),
                   ],
                 ),
-              ),
+              ],
+            ),
 
-              // অ্যারো ইন্ডিকেটর (অপশনাল)
-              Icon(Icons.arrow_forward_ios_rounded,
-                  size: 12,
-                  color: Colors.white.withOpacity(0.1)),
+            Positioned(
+              top: 14, left: 14,
+              child: _mapChip(SC.tr('satellite_view'), Icons.satellite_alt_rounded, SC.green),
+            ),
+
+            Positioned(
+              bottom: 14, left: 14,
+              child: GestureDetector(
+                onTap: () => launchUrl(Uri.parse('https://www.google.com/maps/search/?api=1&query=${cssLocation.latitude},${cssLocation.longitude}')),
+                child: _mapChip(SC.tr('open_google_maps'), Icons.open_in_new_rounded, SC.cyan),
+              ),
+            ),
+
+            Positioned(
+              bottom: 14, right: 14,
+              child: Column(
+                children: [
+                  _zoomBtn(Icons.add_rounded, 1),
+                  const SizedBox(height: 6),
+                  _zoomBtn(Icons.remove_rounded, -1),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _mapChip(String text, IconData icon, Color color) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.65),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: color.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Text(text, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
             ],
           ),
         ),
@@ -359,18 +208,173 @@ class _FooterSectionState extends State<FooterSection> {
     );
   }
 
-  Widget _buildDivider() {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.transparent,
-            Colors.white.withOpacity(0.05),
-            Colors.transparent,
+  Widget _zoomBtn(IconData icon, double delta) {
+    return GestureDetector(
+      onTap: () => _mapController.move(_mapController.camera.center, _mapController.camera.zoom + delta),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, size: 18, color: Colors.black87),
+      ),
+    );
+  }
+
+  Widget _buildContactCards(bool isDark, Color textColor, Color subTextColor, Color cardBg, Color borderColor) {
+    final contact = widget.contactInfo;
+    return Column(
+      children: [
+        _contactCard(
+          icon: Icons.location_on_rounded,
+          label: SC.tr('hq_label'),
+          value: contact?.address ?? 'Shambhudia Chauhali, Sirajganj',
+          color: SC.orange,
+          isDark: isDark,
+          textColor: textColor,
+          borderColor: borderColor,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _contactCard(
+                icon: Icons.phone_rounded,
+                label: SC.tr('hotline_label'),
+                value: contact?.phone ?? '01317536550',
+                color: SC.green,
+                isDark: isDark,
+                textColor: textColor,
+                borderColor: borderColor,
+                onTap: () => launchUrl(Uri.parse('tel:${contact?.phone ?? "01317536550"}')),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _contactCard(
+                icon: Icons.alternate_email_rounded,
+                label: SC.tr('email_label'),
+                value: contact?.email ?? 'css@gmail.com',
+                color: SC.cyan,
+                isDark: isDark,
+                textColor: textColor,
+                borderColor: borderColor,
+                onTap: () => launchUrl(Uri.parse('mailto:${contact?.email ?? "css@gmail.com"}')),
+              ),
+            ),
           ],
         ),
+      ],
+    );
+  }
+
+  Widget _contactCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    required bool isDark,
+    required Color textColor,
+    required Color borderColor,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? color.withValues(alpha: 0.06) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isDark ? color.withValues(alpha: 0.2) : borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color, size: 20),
+                const SizedBox(width: 10),
+                Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(value, style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500, height: 1.4), maxLines: 2),
+            if (onTap != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                child: Text(
+                  label.contains(SC.tr('hotline_label')) ? SC.tr('call_now') : SC.tr('mail_now'),
+                  style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ]
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSocialRow(bool isDark, Color subTextColor, Color cardBg, Color borderColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: cardBg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        children: [
+          Text(SC.tr('follow_us'), style: TextStyle(color: subTextColor, fontSize: 12, fontWeight: FontWeight.w600)),
+          const Spacer(),
+          _socialBtn(Icons.facebook_rounded, const Color(0xFF1877F2), () => launchUrl(Uri.parse('https://www.facebook.com/organizationofcss'))),
+          const SizedBox(width: 10),
+          _socialBtn(Icons.language_rounded, SC.cyan, () => launchUrl(Uri.parse('https://consciousstudentsociety.site'))),
+        ],
+      ),
+    );
+  }
+
+  Widget _socialBtn(IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+    );
+  }
+
+  Widget _buildBottomBar(Color subTextColor, Color borderColor) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: subTextColor.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.copyright_rounded, size: 12, color: subTextColor),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              SC.tr('copyright_text'),
+              textAlign: TextAlign.center,
+              style: TextStyle(color: subTextColor, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1),
+            ),
+          ),
+        ],
       ),
     );
   }

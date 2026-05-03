@@ -1,77 +1,84 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:css/models/gallery_image_model.dart';
+import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/gallery_image_model.dart';
+import 'cloudinary_service.dart';
 
 class GalleryService {
   final _supabase = Supabase.instance.client;
 
-  /// Fetch gallery images with optional filters
+  // ─── Fetch (with filters) ───────────────────────────────────
   Future<List<GalleryImage>> fetchGallery({
-    String? category,
+    String?   category,
     DateTime? startDate,
     DateTime? endDate,
   }) async {
     try {
       var query = _supabase.from('gallery_images').select();
 
-      // Filter by category
       if (category != null && category.isNotEmpty && category != 'সব') {
         query = query.eq('category', category);
       }
-
-      // Filter by date range
       if (startDate != null) {
         query = query.gte('created_at', startDate.toIso8601String());
       }
-
       if (endDate != null) {
         query = query.lte('created_at', endDate.toIso8601String());
       }
 
       final response = await query.order('created_at', ascending: false);
-
       return (response as List)
-          .map((item) => GalleryImage.fromMap(item))
+          .map((e) => GalleryImage.fromMap(e as Map<String, dynamic>))
           .toList();
     } catch (e) {
       throw Exception('ছবি লোড করতে ব্যর্থ: $e');
     }
   }
 
-  /// Upload image to Supabase Storage
-  Future<String> uploadImage(PlatformFile file) async {
+  // ─── Upload from PlatformFile (FilePicker) ──────────────────
+  Future<String> uploadImage(PlatformFile platformFile) async {
     try {
-      final bytes = file.bytes;
-      if (bytes == null) throw Exception('ফাইল পড়া যায়নি');
+      if (platformFile.bytes == null) {
+        throw Exception('ফাইল পড়া যায়নি');
+      }
 
-      // Create unique filename with date folder structure
-      final now = DateTime.now();
-      final year = now.year.toString();
-      final month = now.month.toString().padLeft(2, '0');
-      final timestamp = now.millisecondsSinceEpoch;
-      final fileName = '${timestamp}_${file.name}';
-      final filePath = 'gallery/$year/$month/$fileName';
+      final tempDir  = Directory.systemTemp;
+      final tempFile = File(
+        '${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}_${platformFile.name}',
+      );
+      await tempFile.writeAsBytes(platformFile.bytes!);
 
-      // Upload to Supabase Storage
-      await _supabase.storage.from('gallery').uploadBinary(
-        filePath,
-        bytes,
-        fileOptions: const FileOptions(
-          contentType: 'image/jpeg',
-          upsert: false,
-        ),
+      final url = await CloudinaryService.uploadImage(
+        tempFile,
+        folder: CloudinaryService.folderGallery,
       );
 
-      // Get public URL
-      final publicUrl = _supabase.storage.from('gallery').getPublicUrl(filePath);
+      await tempFile.delete();
 
-      return publicUrl;
+      if (url == null) throw Exception('Cloudinary upload failed');
+      return url;
     } catch (e) {
       throw Exception('ছবি আপলোড করতে ব্যর্থ: $e');
     }
   }
 
-  /// Add image record to database
+  // ─── Upload from File (Mobile) ──────────────────────────────
+  Future<String?> uploadGalleryImage(File imageFile) async {
+    return CloudinaryService.uploadImage(
+      imageFile,
+      folder: CloudinaryService.folderGallery,
+    );
+  }
+
+  // ─── Batch Upload ───────────────────────────────────────────
+  Future<List<String>> uploadMultiple(List<File> imageFiles) async {
+    return CloudinaryService.uploadMultipleImages(
+      imageFiles,
+      folder: CloudinaryService.folderGallery,
+    );
+  }
+
+  // ─── Add to Database ────────────────────────────────────────
   Future<void> addImageToGallery({
     required String imageUrl,
     required String category,
@@ -79,56 +86,63 @@ class GalleryService {
   }) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
-
       await _supabase.from('gallery_images').insert({
-        'title': title,
-        'category': category,
-        'image_url': imageUrl,
+        'title'      : title,
+        'category'   : category,
+        'image_url'  : imageUrl,
         'uploaded_by': userId,
+        'created_at' : DateTime.now().toIso8601String(),
       });
     } catch (e) {
       throw Exception('ডাটাবেসে যোগ করতে ব্যর্থ: $e');
     }
   }
 
-  /// Delete image from storage and database
+  // ─── Delete (Cloudinary + DB) ────────────────────────────────
   Future<void> deleteImage(String id, String imageUrl) async {
     try {
-      // Extract file path from URL
-      final uri = Uri.parse(imageUrl);
-      final pathSegments = uri.pathSegments;
-      final galleryIndex = pathSegments.indexOf('gallery');
-
-      if (galleryIndex != -1 && galleryIndex < pathSegments.length - 1) {
-        final filePath = pathSegments.sublist(galleryIndex).join('/');
-
-        // Delete from storage
-        await _supabase.storage.from('gallery').remove([filePath]);
+      // ১. Cloudinary থেকে delete করো
+      if (imageUrl.isNotEmpty) {
+        await CloudinaryService.deleteFile(imageUrl, resourceType: 'image');
       }
 
-      // Delete from database
+      // ২. DB থেকে delete করো
       await _supabase.from('gallery_images').delete().eq('id', id);
     } catch (e) {
       throw Exception('ছবি মুছতে ব্যর্থ: $e');
     }
   }
 
-  /// Get available categories
+  // ─── URL Helpers ────────────────────────────────────────────
+  String getThumbnailUrl(String? rawUrl) {
+    if (rawUrl == null || rawUrl.isEmpty) return '';
+    if (rawUrl.contains('cloudinary.com')) {
+      return CloudinaryService.thumbnailUrl(rawUrl, size: 300);
+    }
+    return rawUrl;
+  }
+
+  String getFullUrl(String? rawUrl) {
+    if (rawUrl == null || rawUrl.isEmpty) return '';
+    if (rawUrl.contains('cloudinary.com')) {
+      return CloudinaryService.optimizeUrl(rawUrl, width: 1080);
+    }
+    return rawUrl;
+  }
+
+  // ─── Categories ─────────────────────────────────────────────
   Future<List<String>> getCategories() async {
     try {
       final response = await _supabase
           .from('gallery_images')
-          .select('category')
-          .order('category');
-
+          .select('category');
       final categories = (response as List)
-          .map((item) => item['category'] as String)
+          .map((e) => e['category'] as String)
           .toSet()
           .toList();
-
       return ['সব', ...categories];
     } catch (e) {
-      return ['সব', 'ইভেন্ট', 'সেমিনার', 'কর্মশালা', 'প্রোগ্রাম'];
+      return ['সব', 'ইভেন্ট', 'সেমিনার', 'রক্তদান', 'কর্মশালা'];
     }
   }
 }

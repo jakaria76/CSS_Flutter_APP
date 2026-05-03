@@ -1,12 +1,11 @@
 import 'dart:ui';
-import 'package:css/pages/feed/Posts%20Management%20Page.dart';
-import 'package:css/pages/feed/create_post_page.dart';
-import 'package:css/pages/feed/ManagePostPage.dart';// ✅ Updated import
-import 'package:css/pages/feed/Posts Management Page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
+
+// সেটিংস ও ইউটিলিটি
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 // উইজেটস ইম্পোর্ট
 import 'package:css/widgets/custom_app_bar.dart';
@@ -14,10 +13,10 @@ import 'package:css/widgets/custom_drawer.dart';
 import 'package:css/widgets/custom_bottom_navigation.dart';
 
 // সার্ভিস ও পেজ ইম্পোর্ট
-import 'package:css/services/notification_service.dart';
 import 'package:css/dashboard_page.dart';
 import 'package:css/pages/Profile/profile_page.dart';
 import 'package:css/pages/feed/feed_page.dart';
+import 'package:css/pages/feed/Posts%20Management%20Page.dart';
 
 // অন্যান্য পেজ ইম্পোর্ট
 import 'package:css/pages/Blood/blood_groups_page.dart';
@@ -39,6 +38,15 @@ import 'package:css/pages/Gallery/gallery_management_page.dart';
 import 'package:css/pages/videos/video_management_page.dart';
 import 'package:css/pages/complaints/admin_complaints_page.dart';
 
+import 'package:css/pages/PreviousPresidentPage/PreviousPresidentPage.dart';
+import 'package:css/pages/PreviousPresidentPage/ManagePreviousPresidentPage.dart';
+
+import 'package:css/pages/AdvisorPage/advisor_page.dart';
+import 'package:css/pages/AdvisorPage/manage_advisor_page.dart';
+import 'package:css/pages/Banner/banner_management_page.dart';
+
+import 'package:css/pages/SettingsPage/settings_page.dart';
+
 class MemberHome extends StatefulWidget {
   final bool isGuest;
   const MemberHome({super.key, required this.isGuest});
@@ -51,7 +59,8 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
   int selectedIndex = 0;
   int _page = 0;
 
-  final GlobalKey<CurvedNavigationBarState> _bottomNavigationKey = GlobalKey<CurvedNavigationBarState>();
+  final GlobalKey<CurvedNavigationBarState> _bottomNavigationKey =
+  GlobalKey<CurvedNavigationBarState>();
 
   String? userName;
   String? userEmail;
@@ -67,16 +76,12 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
 
   Future<void> _initApp() async {
     if (!widget.isGuest) {
-      await NotificationService.init();
-      await NotificationService.initAndSaveToken();
-      NotificationService.listenForeground();
-      NotificationService.listenClick();
       await _loadProfile();
     } else {
       if (mounted) {
         setState(() {
-          userName = 'Guest User';
-          userEmail = 'Limited Access';
+          userName = SC.tr('guest_user');
+          userEmail = SC.tr('limited_access');
           loadingProfile = false;
           isUserAdmin = false;
         });
@@ -97,7 +102,7 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
           .maybeSingle();
       if (mounted) {
         setState(() {
-          userName = data?['full_name'] ?? 'User';
+          userName = data?['full_name'] ?? SC.tr('user_default_name');
           userEmail = user.email;
           profileImageUrl = data?['profile_image_url'];
           isUserAdmin = data?['role'] == 'admin';
@@ -110,10 +115,7 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
   }
 
   void _handleMenuTap(int index) {
-    setState(() {
-      selectedIndex = index;
-    });
-
+    setState(() => selectedIndex = index);
     HapticFeedback.lightImpact();
 
     Future.delayed(const Duration(milliseconds: 250), () {
@@ -127,63 +129,33 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
       } else {
         Widget? nextRoute;
         switch (index) {
-          case 4:
-            nextRoute = const EventsListPage();
-            break;
-          case 5:
-            nextRoute = const NoticePage();
-            break;
-          case 6:
-            nextRoute = const CommitteePage();
-            break;
-          case 7:
-            nextRoute = const AboutPage();
-            break;
-          case 18:
-            nextRoute = const GalleryPage();
-            break;
-          case 20:
-            nextRoute = const VideosPage();
-            break;
-          case 22:
-            nextRoute = const MyComplaintsPage();
-            break;
-          case 8:
-            nextRoute = const NoticeManagementPage();
-            break;
-          case 9:
-            nextRoute = const ManageCommitteePage();
-            break;
-          case 10:
-            nextRoute = const ManageAboutPage();
-            break;
-          case 11:
-            nextRoute = const AdminEventsPage();
-            break;
-          case 12:
-            nextRoute = const CreateEventPage();
-            break;
-          case 19:
-            nextRoute = const GalleryManagementPage();
-            break;
-          case 21:
-            nextRoute = const VideoManagementPage();
-            break;
-          case 23:
-            nextRoute = const AdminComplaintsPage();
-            break;
-          case 24:
-            nextRoute = const PostsManagementPage(); // ✅ Posts Management Page
-            break;
-          default:
-            return;
+          case 4: nextRoute = const EventsListPage(); break;
+          case 5: nextRoute = const NoticePage(); break;
+          case 6: nextRoute = const CommitteePage(); break;
+          case 7: nextRoute = const AboutPage(); break;
+          case 8: nextRoute = const NoticeManagementPage(); break;
+          case 9: nextRoute = const ManageCommitteePage(); break;
+          case 10: nextRoute = const ManageAboutPage(); break;
+          case 11: nextRoute = const AdminEventsPage(); break;
+          case 12: nextRoute = const CreateEventPage(); break;
+          case 18: nextRoute = const GalleryPage(); break;
+          case 19: nextRoute = const GalleryManagementPage(); break;
+          case 20: nextRoute = const VideosPage(); break;
+          case 21: nextRoute = const VideoManagementPage(); break;
+          case 22: nextRoute = const MyComplaintsPage(); break;
+          case 23: nextRoute = const AdminComplaintsPage(); break;
+          case 24: nextRoute = const PostsManagementPage(); break;
+          case 25: nextRoute = const PreviousPresidentPage(); break;
+          case 26: nextRoute = const ManagePreviousPresidentPage(); break;
+          case 27: nextRoute = const AdvisorPage(); break;
+          case 28: nextRoute = const ManageAdvisorPage(); break;
+          case 29: nextRoute = const BannerManagementPage(); break;
+          case 30: nextRoute = const SettingsPage(); break;
+          default: return;
         }
 
         if (nextRoute != null) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => nextRoute!),
-          );
+          Navigator.push(context, MaterialPageRoute(builder: (_) => nextRoute!));
         }
       }
     });
@@ -191,67 +163,73 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: const Color(0xFF0F2027),
-      appBar: const CustomAppBar(),
-      drawer: CustomDrawer(
-        selectedIndex: selectedIndex,
-        onMenuTap: _handleMenuTap,
-        userName: userName,
-        userEmail: userEmail,
-        profileImageUrl: profileImageUrl,
-        isAdmin: isUserAdmin,
-      ),
-      body: Stack(
-        children: [
-          Positioned(
-            top: -50,
-            left: -50,
-            child: _blurOrb(250, Colors.cyanAccent.withOpacity(0.08)),
-          ),
-          Positioned(
-            bottom: 100,
-            right: -30,
-            child: _blurOrb(200, Colors.purpleAccent.withOpacity(0.05)),
-          ),
-          IndexedStack(
-            index: _page,
-            children: const [
-              DashboardPage(),
-              FeedPage(),
-              BloodGroupsPage(),
-              ProfilePage()
-            ],
-          ),
-        ],
-      ),
-      bottomNavigationBar: CustomBottomNavigation(
-        currentPage: _page,
-        navigationKey: _bottomNavigationKey,
-        onPageChanged: (index) {
-          setState(() {
-            _page = index;
-            selectedIndex = index;
-          });
-        },
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildPage(),
       ),
     );
   }
 
-  Widget _blurOrb(double size, Color color) => Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: color,
-      boxShadow: [
-        BoxShadow(
-          color: color,
-          blurRadius: 100,
-          spreadRadius: 50,
-        )
-      ],
-    ),
-  );
+  Widget _buildPage() {
+    final isDark = SC.isDark;
+    final bgColor = isDark ? SC.bgStart : const Color(0xFFF0F4FF);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        backgroundColor: bgColor,
+        appBar: const CustomAppBar(),
+        drawer: CustomDrawer(
+          selectedIndex: selectedIndex,
+          onMenuTap: _handleMenuTap,
+          userName: userName,
+          userEmail: userEmail,
+          profileImageUrl: profileImageUrl,
+          isAdmin: isUserAdmin,
+        ),
+        body: Stack(
+          children: [
+            // থিম অনুযায়ী ব্যাকগ্রাউন্ড গ্রেডিয়েন্ট
+            Container(decoration: BoxDecoration(gradient: SC.currentGradient)),
+
+            // অরবস (Orbs)
+            Positioned(
+              top: -50,
+              left: -50,
+              child: SC.blob(250, SC.cyan.withOpacity(isDark ? 0.08 : 0.04)),
+            ),
+            Positioned(
+              bottom: 100,
+              right: -30,
+              child: SC.blob(200, SC.purple.withOpacity(isDark ? 0.05 : 0.03)),
+            ),
+
+            // কন্টেন্ট স্ট্যাক
+            IndexedStack(
+              index: _page,
+              children: const [
+                DashboardPage(),
+                FeedPage(),
+                BloodGroupsPage(),
+                ProfilePage(),
+              ],
+            ),
+          ],
+        ),
+        bottomNavigationBar: CustomBottomNavigation(
+          currentPage: _page,
+          navigationKey: _bottomNavigationKey,
+          onPageChanged: (index) {
+            setState(() {
+              _page = index;
+              selectedIndex = index;
+            });
+          },
+        ),
+      ),
+    );
+  }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/committee_member_model.dart';
 import '../pages/Profile/profile_page.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class CommitteeCard extends StatefulWidget {
   final CommitteeMember member;
@@ -18,47 +19,46 @@ class CommitteeCard extends StatefulWidget {
   State<CommitteeCard> createState() => _CommitteeCardState();
 }
 
-class _CommitteeCardState extends State<CommitteeCard> with SingleTickerProviderStateMixin {
-  late AnimationController _hoverController;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _glowAnimation;
-  bool _isHovered = false;
+class _CommitteeCardState extends State<CommitteeCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  bool _pressed = false;
 
   @override
   void initState() {
     super.initState();
-    _hoverController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
-      CurvedAnimation(parent: _hoverController, curve: Curves.easeOut),
-    );
-
-    _glowAnimation = Tween<double>(begin: 0.05, end: 0.15).animate(
-      CurvedAnimation(parent: _hoverController, curve: Curves.easeOut),
-    );
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 180));
+    _scale = Tween<double>(begin: 1.0, end: 0.972).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
   }
 
   @override
   void dispose() {
-    _hoverController.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
-  void _handleViewProfile() {
-    // Haptic feedback
+  void _handleTap() {
     HapticFeedback.lightImpact();
-
     if (widget.onViewProfile != null) {
       widget.onViewProfile!();
     } else {
-      // সরাসরি ProfilePage এ নেভিগেট করা
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => ProfilePage(id: widget.member.id),
+        PageRouteBuilder(
+          pageBuilder: (_, a, __) => ProfilePage(id: widget.member.id),
+          transitionsBuilder: (_, a, __, child) => FadeTransition(
+            opacity: a,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                  begin: const Offset(0.04, 0), end: Offset.zero)
+                  .animate(CurvedAnimation(parent: a, curve: Curves.easeOut)),
+              child: child,
+            ),
+          ),
+          transitionDuration: const Duration(milliseconds: 320),
         ),
       );
     }
@@ -66,231 +66,267 @@ class _CommitteeCardState extends State<CommitteeCard> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    // মেম্বার টাইপ অনুযায়ী কালার থিম
-    final bool isTopLeader = widget.member.category == 'Top';
-    final Color primaryColor = isTopLeader ? const Color(0xFFFFD700) : const Color(0xFF00D4FF);
-    final Color secondaryColor = isTopLeader ? const Color(0xFFFF8C00) : const Color(0xFF0099CC);
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildCard(context),
+      ),
+    );
+  }
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() {
-        _isHovered = true;
-        _hoverController.forward();
-      }),
-      onExit: (_) => setState(() {
-        _isHovered = false;
-        _hoverController.reverse();
-      }),
+  Widget _buildCard(BuildContext context) {
+    final isDark = SC.isDark;
+    final cardBg = isDark ? SC.cardBg : Colors.white;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.black.withValues(alpha: 0.08);
+
+    final isTop = widget.member.category == 'Top' || widget.member.category == 'শীর্ষ';
+
+    // Accent colors based on priority
+    final Color accent = isTop ? SC.amber : SC.cyan;
+    final Color accentDim = isTop ? SC.orange : SC.blue;
+
+    return GestureDetector(
+      onTapDown: (_) {
+        setState(() => _pressed = true);
+        _ctrl.forward();
+      },
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        _ctrl.reverse();
+        _handleTap();
+      },
+      onTapCancel: () {
+        setState(() => _pressed = false);
+        _ctrl.reverse();
+      },
       child: AnimatedBuilder(
-        animation: _hoverController,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: _scaleAnimation.value,
+        animation: _ctrl,
+        builder: (_, child) => Transform.scale(
+          scale: _scale.value,
+          child: child,
+        ),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: _pressed ? accent.withValues(alpha: 0.45) : borderColor,
+              width: 1.0,
+            ),
+            boxShadow: isDark ? [] : [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              )
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Photo area ─────────────────────────────────
+              _buildPhotoArea(accent, isTop, isDark, cardBg),
+
+              // ── Info area ──────────────────────────────────
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Position badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(color: accent.withValues(alpha: 0.25)),
+                        ),
+                        child: Text(
+                          widget.member.position,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: accent,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 7),
+
+                      // Name
+                      Text(
+                        widget.member.fullName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          height: 1.25,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+
+                      const Spacer(),
+
+                      // CTA Button
+                      _buildCTA(accent, accentDim, isTop),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPhotoArea(Color accent, bool isTop, bool isDark, Color cardBg) {
+    final placeholderBg = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03);
+
+    return AspectRatio(
+      aspectRatio: 1.0,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(color: placeholderBg),
+
+          if (widget.member.imagePath != null && widget.member.imagePath!.isNotEmpty)
+            Image.network(
+              widget.member.imagePath!,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return Center(
+                  child: SizedBox(
+                    width: 24, height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: accent.withValues(alpha: 0.5),
+                    ),
+                  ),
+                );
+              },
+              errorBuilder: (_, __, ___) => _placeholder(accent, placeholderBg),
+            )
+          else
+            _placeholder(accent, placeholderBg),
+
+          // Bottom gradient overlay
+          Positioned(
+            bottom: 0, left: 0, right: 0, height: 60,
             child: Container(
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
                 gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
                   colors: [
-                    Colors.white.withOpacity(0.12),
-                    Colors.white.withOpacity(0.03),
+                    cardBg.withValues(alpha: 0.85),
+                    Colors.transparent,
                   ],
-                ),
-                border: Border.all(
-                  color: primaryColor.withOpacity(_isHovered ? 0.4 : 0.2),
-                  width: _isHovered ? 2.0 : 1.5,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryColor.withOpacity(_glowAnimation.value),
-                    blurRadius: _isHovered ? 30 : 20,
-                    offset: const Offset(0, 10),
-                    spreadRadius: _isHovered ? 5 : 0,
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          primaryColor.withOpacity(0.05),
-                          Colors.transparent,
-                          secondaryColor.withOpacity(0.03),
-                        ],
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Profile Image Section with Error/Loading Handling
-                          Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              Container(
-                                width: 90,
-                                height: 90,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: primaryColor.withOpacity(_isHovered ? 0.3 : 0.15),
-                                      blurRadius: 15,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              CircleAvatar(
-                                radius: 42,
-                                backgroundColor: primaryColor.withOpacity(0.3),
-                                child: ClipOval(
-                                  child: Container(
-                                    width: 76,
-                                    height: 76,
-                                    color: const Color(0xFF132D46),
-                                    child: widget.member.imagePath != null && widget.member.imagePath!.isNotEmpty
-                                        ? Image.network(
-                                      widget.member.imagePath!,
-                                      fit: BoxFit.cover,
-                                      // ইমেজ লোড হওয়ার সময় লোডার দেখাবে
-                                      loadingBuilder: (context, child, loadingProgress) {
-                                        if (loadingProgress == null) return child;
-                                        return Center(
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
-                                          ),
-                                        );
-                                      },
-                                      // ইমেজ এরর (যেমন 400 Bad Request) হলে ডিফল্ট আইকন দেখাবে
-                                      errorBuilder: (context, error, stackTrace) => Icon(
-                                        Icons.person_rounded,
-                                        size: 40,
-                                        color: primaryColor.withOpacity(0.5),
-                                      ),
-                                    )
-                                        : Icon(
-                                      Icons.person_rounded,
-                                      size: 40,
-                                      color: primaryColor.withOpacity(0.5),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (isTopLeader)
-                                Positioned(
-                                  top: 0,
-                                  right: 0,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(6),
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(colors: [primaryColor, secondaryColor]),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: const Color(0xFF132D46), width: 2),
-                                    ),
-                                    child: const Icon(Icons.star, size: 12, color: Color(0xFF0F2027)),
-                                  ),
-                                ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 14),
-
-                          // Name Section
-                          ShaderMask(
-                            shaderCallback: (bounds) => LinearGradient(
-                              colors: _isHovered ? [primaryColor, secondaryColor] : [Colors.white, Colors.white],
-                            ).createShader(bounds),
-                            child: Text(
-                              widget.member.fullName,
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                                fontSize: 15,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 6),
-
-                          // Position Badge
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: primaryColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(color: primaryColor.withOpacity(0.3)),
-                            ),
-                            child: Text(
-                              widget.member.position,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                                color: primaryColor,
-                              ),
-                            ),
-                          ),
-
-                          const Spacer(),
-
-                          // View Profile Button
-                          Container(
-                            width: double.infinity,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              gradient: LinearGradient(colors: [primaryColor, secondaryColor]),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: primaryColor.withOpacity(0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: ElevatedButton(
-                              onPressed: _handleViewProfile,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                padding: EdgeInsets.zero,
-                              ),
-                              child: Text(
-                                "VIEW PROFILE",
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  color: isTopLeader ? const Color(0xFF0F2027) : Colors.white,
-                                  letterSpacing: 1.1,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                 ),
               ),
             ),
-          );
-        },
+          ),
+
+          // Top-right badge for top leaders
+          if (isTop)
+            Positioned(
+              top: 10, right: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                    color: SC.amber,
+                    borderRadius: BorderRadius.circular(5),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4)
+                    ]
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.workspace_premium_rounded, size: 10, color: Colors.black),
+                    const SizedBox(width: 3),
+                    Text(
+                      SC.tr('leadership_label'),
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder(Color accent, Color bg) {
+    return Container(
+      color: bg,
+      child: Center(
+        child: Icon(
+          Icons.person_rounded,
+          size: 52,
+          color: accent.withValues(alpha: 0.18),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCTA(Color accent, Color accentDim, bool isTop) {
+    return Container(
+      height: 34,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [accent, accentDim],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _handleTap,
+          borderRadius: BorderRadius.circular(8),
+          splashColor: Colors.white.withValues(alpha: 0.15),
+          child: Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  SC.tr('view_profile_btn'),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: isTop ? Colors.black : Colors.white,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 12,
+                  color: isTop ? Colors.black : Colors.white,
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

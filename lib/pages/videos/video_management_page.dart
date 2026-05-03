@@ -1,7 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:css/services/video_service.dart';
 import 'package:css/models/video_model.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class VideoManagementPage extends StatefulWidget {
   const VideoManagementPage({super.key});
@@ -10,7 +12,8 @@ class VideoManagementPage extends StatefulWidget {
   State<VideoManagementPage> createState() => _VideoManagementPageState();
 }
 
-class _VideoManagementPageState extends State<VideoManagementPage> with SingleTickerProviderStateMixin {
+class _VideoManagementPageState extends State<VideoManagementPage>
+    with SingleTickerProviderStateMixin {
   final service = VideoService();
   List<Video> videos = [];
   bool isLoading = true;
@@ -40,7 +43,7 @@ class _VideoManagementPageState extends State<VideoManagementPage> with SingleTi
       videos = await service.fetchVideos(admin: true);
       _animationController.forward(from: 0);
     } catch (e) {
-      _showErrorSnackBar('Error: $e');
+      SC.toast(context, 'Error: $e', SC.red);
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -48,54 +51,107 @@ class _VideoManagementPageState extends State<VideoManagementPage> with SingleTi
 
   List<Video> get _filteredVideos {
     if (_searchQuery.isEmpty) return videos;
-    return videos.where((v) => v.title.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+    return videos
+        .where((v) =>
+        v.title.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
   }
 
-  // --- UI Build ---
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F2027),
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          _buildSliverAppBar(),
-          if (isLoading)
-            const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Colors.cyanAccent)))
-          else if (_filteredVideos.isEmpty)
-            SliverFillRemaining(child: _buildEmptyState())
-          else
-            _buildVideoList(),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddEditDialog(),
-        backgroundColor: Colors.cyanAccent,
-        icon: const Icon(Icons.video_call_rounded, color: Colors.black),
-        label: const Text('নতুন ভিডিও', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildPage(),
       ),
     );
   }
 
-  Widget _buildSliverAppBar() {
+  Widget _buildPage() {
+    final isDark = SC.isDark;
+    final bgColor = isDark ? SC.bgStart : const Color(0xFFF0F4FF);
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: bgColor,
+        body: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            _buildSliverAppBar(isDark, textColor),
+            if (isLoading)
+              SliverFillRemaining(
+                child: Center(
+                  child: CircularProgressIndicator(color: SC.cyan),
+                ),
+              )
+            else if (_filteredVideos.isEmpty)
+              SliverFillRemaining(child: _buildEmptyState(textColor))
+            else
+              _buildVideoList(isDark, textColor),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _showAddEditDialog(isDark: isDark),
+          backgroundColor: SC.cyan,
+          icon: const Icon(Icons.video_call_rounded, color: Colors.black),
+          label: Text(
+            SC.tr('newVideo'),
+            style: const TextStyle(
+                color: Colors.black, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSliverAppBar(bool isDark, Color textColor) {
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.black.withValues(alpha: 0.08);
+    final fillColor = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.05);
+
     return SliverAppBar(
       expandedHeight: 220,
       pinned: true,
       elevation: 0,
-      backgroundColor: const Color(0xFF0F2027),
+      backgroundColor: isDark ? SC.bgStart : const Color(0xFFF0F4FF),
+      leading: _buildBackButton(isDark, textColor),
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: true,
         titlePadding: const EdgeInsets.only(bottom: 90),
-        title: const Text('ভিডিও ব্যবস্থাপনা',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.white, letterSpacing: 1.2)),
-        background: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(begin: Alignment.topRight, colors: [Color(0xFF0F2027), Color(0xFF2C5364)]),
+        title: Text(
+          SC.tr('videoManagement'),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+            color: textColor,
+            letterSpacing: 1.2,
           ),
+        ),
+        background: Container(
+          decoration: BoxDecoration(gradient: SC.currentGradient),
           child: Stack(
             children: [
-              Positioned(top: -50, right: -50, child: CircleAvatar(radius: 120, backgroundColor: Colors.cyanAccent.withOpacity(0.05))),
-              const Center(child: Opacity(opacity: 0.05, child: Icon(Icons.video_library_rounded, size: 150, color: Colors.white))),
+              Positioned(
+                top: -50,
+                right: -50,
+                child: CircleAvatar(
+                  radius: 120,
+                  backgroundColor: SC.cyan.withValues(alpha: 0.05),
+                ),
+              ),
+              Center(
+                child: Opacity(
+                  opacity: 0.05,
+                  child: Icon(Icons.video_library_rounded,
+                      size: 150, color: textColor),
+                ),
+              ),
             ],
           ),
         ),
@@ -106,14 +162,26 @@ class _VideoManagementPageState extends State<VideoManagementPage> with SingleTi
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           child: TextField(
             onChanged: (v) => setState(() => _searchQuery = v),
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: textColor),
             decoration: InputDecoration(
-              hintText: 'ভিডিও খুঁজুন...',
-              hintStyle: const TextStyle(color: Colors.white30),
-              prefixIcon: const Icon(Icons.search, color: Colors.cyanAccent),
+              hintText: SC.tr('searchVideo'),
+              hintStyle: TextStyle(
+                  color: textColor.withValues(alpha: 0.35)),
+              prefixIcon: Icon(Icons.search, color: SC.cyan),
               filled: true,
-              fillColor: Colors.white.withOpacity(0.05),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+              fillColor: fillColor,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide(color: borderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide(color: borderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20),
+                borderSide: BorderSide(color: SC.cyan.withValues(alpha: 0.5)),
+              ),
             ),
           ),
         ),
@@ -121,7 +189,28 @@ class _VideoManagementPageState extends State<VideoManagementPage> with SingleTi
     );
   }
 
-  Widget _buildVideoList() {
+  Widget _buildBackButton(bool isDark, Color textColor) {
+    return GestureDetector(
+      onTap: () => Navigator.pop(context),
+      child: Container(
+        margin: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : Colors.black.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.08),
+          ),
+        ),
+        child: Icon(Icons.arrow_back_ios_new, color: textColor, size: 18),
+      ),
+    );
+  }
+
+  Widget _buildVideoList(bool isDark, Color textColor) {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
       sliver: SliverList(
@@ -130,7 +219,7 @@ class _VideoManagementPageState extends State<VideoManagementPage> with SingleTi
             final v = _filteredVideos[index];
             return FadeTransition(
               opacity: _animationController,
-              child: _buildVideoCard(v, index),
+              child: _buildVideoCard(v, index, isDark, textColor),
             );
           },
           childCount: _filteredVideos.length,
@@ -139,72 +228,131 @@ class _VideoManagementPageState extends State<VideoManagementPage> with SingleTi
     );
   }
 
-  Widget _buildVideoCard(Video v, int index) {
+  Widget _buildVideoCard(
+      Video v, int index, bool isDark, Color textColor) {
+    final cardColor = isDark ? SC.cardBg : Colors.white;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.07);
+    final subTextColor =
+    isDark ? Colors.white38 : const Color(0xFF4A5568).withValues(alpha: 0.6);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: cardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: borderColor),
+        boxShadow: isDark
+            ? []
+            : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
       ),
       child: Column(
         children: [
           Container(
             height: 5,
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: index % 2 == 0 ? [Colors.cyanAccent, Colors.blue] : [Colors.purpleAccent, Colors.pink]),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              gradient: LinearGradient(
+                colors: index % 2 == 0
+                    ? [SC.cyan, SC.blue]
+                    : [SC.purple, SC.red],
+              ),
+              borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(24)),
             ),
           ),
           ListTile(
             contentPadding: const EdgeInsets.all(20),
             leading: CircleAvatar(
-              backgroundColor: Colors.white10,
-              child: Icon(Icons.play_circle_fill, color: v.isActive ? Colors.cyanAccent : Colors.white24),
+              backgroundColor: isDark
+                  ? Colors.white10
+                  : Colors.black.withValues(alpha: 0.05),
+              child: Icon(
+                Icons.play_circle_fill,
+                color: v.isActive ? SC.cyan : subTextColor,
+              ),
             ),
-            title: Text(v.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-            subtitle: Text(v.youtubeUrl, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            title: Text(
+              v.title,
+              style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16),
+            ),
+            subtitle: Text(
+              v.youtubeUrl,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: subTextColor, fontSize: 12),
+            ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(color: Colors.black12, borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24))),
+            padding:
+            const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.black12
+                  : Colors.black.withValues(alpha: 0.03),
+              borderRadius:
+              const BorderRadius.vertical(bottom: Radius.circular(24)),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 IconButton(
-                  icon: Icon(v.isActive ? Icons.visibility : Icons.visibility_off, color: v.isActive ? Colors.greenAccent : Colors.white24, size: 20),
+                  icon: Icon(
+                    v.isActive ? Icons.visibility : Icons.visibility_off,
+                    color: v.isActive ? SC.green : subTextColor,
+                    size: 20,
+                  ),
                   onPressed: () => _toggleActive(v),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.edit_note, color: Colors.cyanAccent, size: 20),
-                  onPressed: () => _showAddEditDialog(video: v),
+                  icon: Icon(Icons.edit_note, color: SC.cyan, size: 20),
+                  onPressed: () =>
+                      _showAddEditDialog(video: v, isDark: isDark),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                  onPressed: () => _deleteVideo(v),
+                  icon:
+                  Icon(Icons.delete_outline, color: SC.red, size: 20),
+                  onPressed: () => _deleteVideo(v, isDark),
                 ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
   }
 
-  // --- Dialogs & Helpers ---
+  // ── Dialogs ──────────────────────────────────────────────────────────
 
-  void _showAddEditDialog({Video? video}) {
+  void _showAddEditDialog({Video? video, required bool isDark}) {
     final titleCtrl = TextEditingController(text: video?.title);
     final urlCtrl = TextEditingController(text: video?.youtubeUrl);
-    final sortCtrl = TextEditingController(text: video?.sortOrder.toString() ?? videos.length.toString());
+    final sortCtrl = TextEditingController(
+        text: video?.sortOrder.toString() ?? videos.length.toString());
     bool isSaving = false;
+
+    final dialogBg = isDark ? SC.cardBg : Colors.white;
+    final labelColor = isDark
+        ? Colors.white38
+        : const Color(0xFF4A5568).withValues(alpha: 0.6);
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
 
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(35)),
+          shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(35)),
           backgroundColor: Colors.transparent,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(35),
@@ -213,53 +361,104 @@ class _VideoManagementPageState extends State<VideoManagementPage> with SingleTi
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 500),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [Color(0xFF0F2027), Color(0xFF2C5364)]),
+                  color: dialogBg,
                   borderRadius: BorderRadius.circular(35),
-                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.1)
+                        : Colors.black.withValues(alpha: 0.08),
+                  ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _buildDialogHeader(video == null ? 'নতুন ভিডিও' : 'ভিডিও এডিট', Icons.video_collection_outlined),
+                    _buildDialogHeader(
+                      video == null
+                          ? SC.tr('addVideo')
+                          : SC.tr('editVideo'),
+                      Icons.video_collection_outlined,
+                    ),
                     Flexible(
                       child: SingleChildScrollView(
                         padding: const EdgeInsets.all(24),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildLabel('ভিডিও শিরোনাম'),
-                            TextField(controller: titleCtrl, style: const TextStyle(color: Colors.white), decoration: _glassInputDecoration('শিরোনাম লিখুন...')),
+                            _buildLabel(SC.tr('videoTitle'), labelColor),
+                            TextField(
+                              controller: titleCtrl,
+                              style: TextStyle(color: textColor),
+                              decoration: _inputDecoration(
+                                SC.tr('videoTitleHint'),
+                                isDark,
+                              ),
+                            ),
                             const SizedBox(height: 20),
-                            _buildLabel('ইউটিউব লিঙ্ক (URL)'),
-                            TextField(controller: urlCtrl, style: const TextStyle(color: Colors.white), decoration: _glassInputDecoration('https://youtube.com/...')),
+                            _buildLabel(SC.tr('youtubeUrl'), labelColor),
+                            TextField(
+                              controller: urlCtrl,
+                              style: TextStyle(color: textColor),
+                              decoration: _inputDecoration(
+                                  'https://youtube.com/...', isDark),
+                            ),
                             const SizedBox(height: 20),
-                            _buildLabel('ক্রমিক নম্বর (Sort Order)'),
-                            TextField(controller: sortCtrl, keyboardType: TextInputType.number, style: const TextStyle(color: Colors.white), decoration: _glassInputDecoration('0')),
-                            if (isSaving) ...[const SizedBox(height: 20), const LinearProgressIndicator(color: Colors.cyanAccent, backgroundColor: Colors.white10)]
+                            _buildLabel(SC.tr('sortOrder'), labelColor),
+                            TextField(
+                              controller: sortCtrl,
+                              keyboardType: TextInputType.number,
+                              style: TextStyle(color: textColor),
+                              decoration: _inputDecoration('0', isDark),
+                            ),
+                            if (isSaving) ...[
+                              const SizedBox(height: 20),
+                              LinearProgressIndicator(
+                                color: SC.cyan,
+                                backgroundColor: isDark
+                                    ? Colors.white10
+                                    : Colors.black.withValues(alpha: 0.08),
+                              ),
+                            ],
                           ],
                         ),
                       ),
                     ),
-                    _buildDialogActions(context, isSaving, video != null, () async {
-                      if (titleCtrl.text.isEmpty || urlCtrl.text.isEmpty) {
-                        _showErrorSnackBar('সবগুলো ঘর পূরণ করুন');
-                        return;
-                      }
-                      setDialogState(() => isSaving = true);
-                      try {
-                        if (video == null) {
-                          await service.addVideo(title: titleCtrl.text, youtubeUrl: urlCtrl.text, sortOrder: int.tryParse(sortCtrl.text) ?? 0);
-                        } else {
-                          await service.updateVideo(id: video.id, title: titleCtrl.text, youtubeUrl: urlCtrl.text, sortOrder: int.tryParse(sortCtrl.text));
-                        }
-                        Navigator.pop(context);
-                        loadVideos();
-                        _showSuccessSnackBar(video == null ? 'যোগ করা হয়েছে' : 'আপডেট করা হয়েছে');
-                      } catch (e) {
-                        setDialogState(() => isSaving = false);
-                        _showErrorSnackBar('ত্রুটি ঘটেছে');
-                      }
-                    }),
+                    _buildDialogActions(context, isSaving, video != null,
+                        isDark, () async {
+                          if (titleCtrl.text.isEmpty || urlCtrl.text.isEmpty) {
+                            SC.toast(context, SC.tr('fillAllFields'), SC.red);
+                            return;
+                          }
+                          setDialogState(() => isSaving = true);
+                          try {
+                            if (video == null) {
+                              await service.addVideo(
+                                title: titleCtrl.text,
+                                youtubeUrl: urlCtrl.text,
+                                sortOrder:
+                                int.tryParse(sortCtrl.text) ?? 0,
+                              );
+                            } else {
+                              await service.updateVideo(
+                                id: video.id,
+                                title: titleCtrl.text,
+                                youtubeUrl: urlCtrl.text,
+                                sortOrder: int.tryParse(sortCtrl.text),
+                              );
+                            }
+                            Navigator.pop(context);
+                            loadVideos();
+                            SC.toast(
+                              context,
+                              video == null
+                                  ? SC.tr('videoAdded')
+                                  : SC.tr('videoUpdated'),
+                              SC.green,
+                            );
+                          } catch (e) {
+                            setDialogState(() => isSaving = false);
+                            SC.toast(context, SC.tr('errorOccurred'), SC.red);
+                          }
+                        }),
                   ],
                 ),
               ),
@@ -272,46 +471,130 @@ class _VideoManagementPageState extends State<VideoManagementPage> with SingleTi
 
   Widget _buildDialogHeader(String title, IconData icon) => Container(
     padding: const EdgeInsets.all(24),
-    decoration: const BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF1CB5E0), Color(0xFF000046)])),
+    decoration: BoxDecoration(
+      gradient: LinearGradient(colors: [SC.cyan, SC.blue]),
+      borderRadius:
+      const BorderRadius.vertical(top: Radius.circular(35)),
+    ),
     child: Row(
       children: [
         Icon(icon, color: Colors.white, size: 28),
         const SizedBox(width: 12),
-        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+        Text(
+          title,
+          style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.white),
+        ),
         const Spacer(),
-        IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close, color: Colors.white70)),
+        IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.close, color: Colors.white70),
+        ),
       ],
     ),
   );
 
-  InputDecoration _glassInputDecoration(String hint) => InputDecoration(
-    hintText: hint, hintStyle: TextStyle(color: Colors.white.withOpacity(0.2)),
-    filled: true, fillColor: Colors.black26,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.cyanAccent, width: 1)),
+  InputDecoration _inputDecoration(String hint, bool isDark) =>
+      InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.2)
+              : Colors.black.withValues(alpha: 0.3),
+        ),
+        filled: true,
+        fillColor: isDark
+            ? Colors.black26
+            : Colors.black.withValues(alpha: 0.04),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide(color: SC.cyan, width: 1),
+        ),
+      );
+
+  Widget _buildLabel(String text, Color color) => Padding(
+    padding: const EdgeInsets.only(bottom: 8, left: 4),
+    child: Text(
+      text,
+      style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.5),
+    ),
   );
 
-  Widget _buildLabel(String text) => Padding(padding: const EdgeInsets.only(bottom: 8, left: 4), child: Text(text, style: const TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)));
+  Widget _buildDialogActions(BuildContext context, bool loading,
+      bool isEdit, bool isDark, VoidCallback onSave) =>
+      Padding(
+        padding: const EdgeInsets.all(24),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextButton(
+                onPressed: loading ? null : () => Navigator.pop(context),
+                child: Text(
+                  SC.tr('cancelBtn'),
+                  style: TextStyle(
+                    color: isDark
+                        ? Colors.white38
+                        : Colors.black.withValues(alpha: 0.4),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton(
+                onPressed: loading ? null : onSave,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: SC.cyan,
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text(
+                  isEdit ? SC.tr('updateBtn') : SC.tr('addBtn'),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
 
-  Widget _buildDialogActions(BuildContext context, bool loading, bool isEdit, VoidCallback onSave) => Padding(
-    padding: const EdgeInsets.all(24),
-    child: Row(children: [
-      Expanded(child: TextButton(onPressed: loading ? null : () => Navigator.pop(context), child: const Text('বাতিল', style: TextStyle(color: Colors.white38)))),
-      const SizedBox(width: 12),
-      Expanded(flex: 2, child: ElevatedButton(onPressed: loading ? null : onSave, style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: Text(isEdit ? 'আপডেট' : 'যোগ করুন', style: const TextStyle(fontWeight: FontWeight.bold)))),
-    ]),
-  );
-
-  Future<void> _deleteVideo(Video v) async {
+  Future<void> _deleteVideo(Video v, bool isDark) async {
+    final textColor =
+    isDark ? Colors.white : const Color(0xFF1A2332);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1B2A6B),
-        title: const Text('মুছে ফেলবেন?', style: TextStyle(color: Colors.white)),
-        content: Text('আপনি কি নিশ্চিত যে "${v.title}" মুছে ফেলতে চান?', style: const TextStyle(color: Colors.white70)),
+        backgroundColor: isDark ? SC.cardBg : Colors.white,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
+        title: Text(SC.tr('deleteVideoConfirm'),
+            style: TextStyle(color: textColor)),
+        content: Text(
+          SC.tr('deleteVideoMsg'),
+          style: TextStyle(
+              color: textColor.withValues(alpha: 0.7)),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('বাতিল')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('ডিলিট', style: TextStyle(color: Colors.redAccent))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(SC.tr('cancelBtn')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(SC.tr('deleteBtn'),
+                style: TextStyle(color: SC.red)),
+          ),
         ],
       ),
     );
@@ -319,10 +602,10 @@ class _VideoManagementPageState extends State<VideoManagementPage> with SingleTi
     if (confirm == true) {
       try {
         await service.deleteVideo(v.id);
-        _showSuccessSnackBar('ভিডিও মুছে ফেলা হয়েছে');
+        SC.toast(context, SC.tr('videoDeleted'), SC.green);
         loadVideos();
       } catch (e) {
-        _showErrorSnackBar('মুছতে ব্যর্থ হয়েছে');
+        SC.toast(context, SC.tr('deleteFailed'), SC.red);
       }
     }
   }
@@ -332,11 +615,15 @@ class _VideoManagementPageState extends State<VideoManagementPage> with SingleTi
       await service.toggleActive(v.id, v.isActive);
       loadVideos();
     } catch (e) {
-      _showErrorSnackBar('আপডেট ব্যর্থ হয়েছে');
+      SC.toast(context, SC.tr('updateFailed'), SC.red);
     }
   }
 
-  Widget _buildEmptyState() => const Center(child: Text('কোনো ভিডিও পাওয়া যায়নি', style: TextStyle(color: Colors.white24)));
-  void _showSuccessSnackBar(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), backgroundColor: Colors.cyanAccent.shade700, behavior: SnackBarBehavior.floating));
-  void _showErrorSnackBar(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m), backgroundColor: Colors.redAccent, behavior: SnackBarBehavior.floating));
+  Widget _buildEmptyState(Color textColor) => Center(
+    child: Text(
+      SC.tr('noVideoFound'),
+      style: TextStyle(
+          color: textColor.withValues(alpha: 0.3), fontSize: 16),
+    ),
+  );
 }

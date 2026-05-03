@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../models/video_model.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class VideoPreviewSection extends StatelessWidget {
   final bool isLoading;
@@ -19,18 +21,34 @@ class VideoPreviewSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // থিম এবং ভাষা পরিবর্তনের জন্য লিসেনার ব্যবহার করা হয়েছে
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildSection(context),
+      ),
+    );
+  }
+
+  Widget _buildSection(BuildContext context) {
+    final isDark = SC.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+    final subTextColor = isDark ? Colors.white38 : const Color(0xFF4A5568);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Header Section
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                "ভিডিও গ্যালারি",
+              Text(
+                SC.tr('video_gallery_title'),
                 style: TextStyle(
-                  color: Colors.cyanAccent,
+                  color: isDark ? SC.cyan : textColor,
                   fontSize: 13,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 1.2,
@@ -38,23 +56,26 @@ class VideoPreviewSection extends StatelessWidget {
               ),
               GestureDetector(
                 onTap: onViewAll,
-                child: const Text(
-                  "সব দেখুন",
+                child: Text(
+                  SC.tr('view_all_btn'),
                   style: TextStyle(
-                    color: Colors.white38,
+                    color: subTextColor,
                     fontSize: 11,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ],
           ),
         ),
+
+        // Video List Section
         SizedBox(
           height: 140,
           child: isLoading
-              ? const Center(
+              ? Center(
             child: CircularProgressIndicator(
-              color: Colors.cyanAccent,
+              color: SC.cyan,
               strokeWidth: 1,
             ),
           )
@@ -65,8 +86,7 @@ class VideoPreviewSection extends StatelessWidget {
             itemCount: videos.length,
             itemBuilder: (context, index) {
               final video = videos[index];
-              final videoId =
-              YoutubePlayer.convertUrlToId(video.youtubeUrl);
+              final videoId = YoutubePlayer.convertUrlToId(video.youtubeUrl);
               final thumbnailUrl = videoId != null
                   ? 'https://img.youtube.com/vi/$videoId/mqdefault.jpg'
                   : '';
@@ -81,29 +101,38 @@ class VideoPreviewSection extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 8,
-                      )
-                    ],
+                    boxShadow: isDark
+                        ? [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 8)]
+                        : [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4))],
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(18),
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
+                        // Thumbnail Image
                         CachedNetworkImage(
                           imageUrl: thumbnailUrl,
                           fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            color: isDark ? Colors.white10 : Colors.black12,
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: isDark ? Colors.white10 : Colors.black12,
+                            child: const Icon(Icons.videocam_off_outlined),
+                          ),
                         ),
+
+                        // Dark Overlay
                         Container(
-                          color: Colors.black.withOpacity(0.4),
+                          color: Colors.black.withValues(alpha: 0.4),
                         ),
-                        const Center(
+
+                        // Play Icon
+                        Center(
                           child: Icon(
                             Icons.play_circle_fill_rounded,
-                            color: Colors.cyanAccent,
+                            color: SC.cyan,
                             size: 40,
                           ),
                         ),

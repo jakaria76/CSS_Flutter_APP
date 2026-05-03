@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/banner_model.dart';
 import '../widgets/banner_slider.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class BannerSection extends StatelessWidget {
   final bool isLoading;
@@ -14,68 +15,80 @@ class BannerSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // AppBar থেকে দূরত্ব তৈরি করার জন্য এই গ্যাপটি দেওয়া হয়েছে
-        const SizedBox(height: 23),
-
-        Container(
-          width: double.infinity,
-          height: 240, // আপনার ডিজাইনের সাথে সামঞ্জস্য রেখে হাইট কিছুটা কমানো হয়েছে
-          margin: const EdgeInsets.symmetric(horizontal: 0), // দুই পাশে সামান্য গ্যাপ
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(25), // ব্যানারটি রাউন্ড শেপ করার জন্য
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.4),
-                blurRadius: 25,
-                offset: const Offset(0, 10),
-              )
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(25), // ইমেজগুলো যাতে কোণা দিয়ে বাইরে না যায়
-            child: isLoading
-                ? _buildGlassLoader()
-                : banners.isEmpty
-                ? _buildEmptyBanner()
-                : _buildPremiumSlider(),
-          ),
-        ),
-      ],
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildSection(context),
+      ),
     );
   }
 
-  Widget _buildGlassLoader() {
+  Widget _buildSection(BuildContext context) {
+    final isDark       = SC.isDark;
+    final loaderBg     = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.05);
+    final emptyBg      = isDark
+        ? Colors.white.withValues(alpha: 0.02)
+        : Colors.black.withValues(alpha: 0.02);
+    final borderColor  = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.05);
+    final subTextColor = isDark ? Colors.white24 : Colors.black26;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, left: 0, right: 0),
+      child: SizedBox(
+        width: double.infinity,
+        height: 200,
+        child: isLoading
+            ? _buildGlassLoader(loaderBg)
+            : banners.isEmpty
+            ? _buildEmptyBanner(emptyBg, borderColor, subTextColor)
+            : _buildPremiumSlider(),
+      ),
+    );
+  }
+
+  Widget _buildGlassLoader(Color bgColor) {
     return Container(
-      color: Colors.white.withOpacity(0.05),
-      child: const Center(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(25),
+      ),
+      child: Center(
         child: CircularProgressIndicator(
-          color: Colors.cyanAccent,
+          color: SC.cyan,
           strokeWidth: 2,
         ),
       ),
     );
   }
 
-  Widget _buildEmptyBanner() {
+  Widget _buildEmptyBanner(
+      Color bgColor, Color borderColor, Color textColor) {
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.02),
+        color: bgColor,
         borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: borderColor),
       ),
-      child: const Column(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.image_not_supported_outlined, color: Colors.white10, size: 40),
-          SizedBox(height: 10),
+          Icon(Icons.image_not_supported_outlined,
+              color: textColor, size: 40),
+          const SizedBox(height: 10),
           Text(
-            'কোনো আপডেট পাওয়া যায়নি',
+            SC.tr('no_banners'),
             style: TextStyle(
-              color: Colors.white24,
+              color: textColor,
               fontSize: 12,
               letterSpacing: 1.2,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
@@ -85,11 +98,11 @@ class BannerSection extends StatelessWidget {
 
   Widget _buildPremiumSlider() {
     return BannerSlider(
-      banners: banners,
-      height: 240,
-      autoPlay: true,
+      banners:          banners,
+      height:           200,
+      autoPlay:         true,
       autoPlayInterval: const Duration(seconds: 5),
-      showIndicator: true,
+      showIndicator:    true,
     );
   }
 }

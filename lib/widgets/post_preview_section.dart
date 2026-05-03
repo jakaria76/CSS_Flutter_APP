@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/post_model.dart';
 import 'package:intl/intl.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class PostPreviewSection extends StatelessWidget {
   final bool isLoading;
@@ -18,6 +20,20 @@ class PostPreviewSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildSection(context),
+      ),
+    );
+  }
+
+  Widget _buildSection(BuildContext context) {
+    final isDark = SC.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+    final subTextColor = isDark ? Colors.white.withValues(alpha: 0.6) : const Color(0xFF4A5568);
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 20),
       child: Column(
@@ -29,20 +45,20 @@ class PostPreviewSection extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  '📢 ADMIN UPDATES',
+                Text(
+                  SC.tr('admin_updates_header'),
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.cyanAccent,
-                    letterSpacing: 1.2,
+                    color: isDark ? SC.cyan : textColor,
+                    letterSpacing: 0.5,
                   ),
                 ),
                 TextButton(
                   onPressed: onViewAll,
-                  child: const Text(
-                    'View All →',
-                    style: TextStyle(color: Colors.cyanAccent),
+                  child: Text(
+                    SC.tr('view_all_arrow'),
+                    style: TextStyle(color: SC.cyan, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
@@ -53,10 +69,10 @@ class PostPreviewSection extends StatelessWidget {
 
           // Loading State
           if (isLoading)
-            const Center(
+            Center(
               child: Padding(
-                padding: EdgeInsets.all(40),
-                child: CircularProgressIndicator(color: Colors.cyanAccent),
+                padding: const EdgeInsets.all(40),
+                child: CircularProgressIndicator(color: SC.cyan),
               ),
             ),
 
@@ -66,12 +82,12 @@ class PostPreviewSection extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(40),
                 child: Column(
-                  children: const [
-                    Icon(Icons.post_add, size: 60, color: Colors.white24),
-                    SizedBox(height: 16),
+                  children: [
+                    Icon(Icons.post_add, size: 60, color: subTextColor.withValues(alpha: 0.2)),
+                    const SizedBox(height: 16),
                     Text(
-                      'No posts yet',
-                      style: TextStyle(color: Colors.white38, fontSize: 16),
+                      SC.tr('no_posts_found'),
+                      style: TextStyle(color: subTextColor, fontSize: 16),
                     ),
                   ],
                 ),
@@ -86,7 +102,7 @@ class PostPreviewSection extends StatelessWidget {
               itemCount: posts.length,
               itemBuilder: (context, index) {
                 final post = posts[index];
-                return _buildPostCard(context, post);
+                return _buildPostCard(context, post, isDark, textColor, subTextColor);
               },
             ),
         ],
@@ -94,25 +110,23 @@ class PostPreviewSection extends StatelessWidget {
     );
   }
 
-  Widget _buildPostCard(BuildContext context, Post post) {
+  Widget _buildPostCard(BuildContext context, Post post, bool isDark, Color textColor, Color subTextColor) {
+    final cardColor = isDark ? SC.cardBg : Colors.white;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.black.withValues(alpha: 0.08);
+
     return GestureDetector(
       onTap: () => onPostTap(post),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              const Color(0xFF203A43).withOpacity(0.8),
-              const Color(0xFF2C5364).withOpacity(0.6),
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: cardColor,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.cyanAccent.withOpacity(0.2)),
-          boxShadow: [
+          border: Border.all(color: borderColor),
+          boxShadow: isDark ? [] : [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -129,12 +143,12 @@ class PostPreviewSection extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.cyanAccent.withOpacity(0.2),
+                      color: SC.cyan.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.admin_panel_settings,
-                      color: Colors.cyanAccent,
+                      color: SC.cyan,
                       size: 24,
                     ),
                   ),
@@ -143,19 +157,18 @@ class PostPreviewSection extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Admin',
+                        Text(
+                          SC.tr('admin_label_simple'),
                           style: TextStyle(
-                            color: Colors.white,
+                            color: textColor,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         Text(
-                          DateFormat('MMM dd, yyyy • hh:mm a')
-                              .format(post.createdAt),
+                          DateFormat('MMM dd, yyyy • hh:mm a').format(post.createdAt),
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
+                            color: subTextColor,
                             fontSize: 12,
                           ),
                         ),
@@ -167,7 +180,6 @@ class PostPreviewSection extends StatelessWidget {
             ),
 
             // Caption
-            // Caption
             if ((post.caption ?? '').isNotEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -175,8 +187,8 @@ class PostPreviewSection extends StatelessWidget {
                   post.caption ?? '',
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: textColor,
                     fontSize: 15,
                     height: 1.4,
                   ),
@@ -185,23 +197,23 @@ class PostPreviewSection extends StatelessWidget {
 
             // First Image Preview
             if (post.images.isNotEmpty)
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(16),
-                  bottomRight: Radius.circular(16),
-                ),
-                child: Image.network(
-                  post.images.first,
-                  height: 200,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      height: 200,
-                      color: Colors.grey.shade800,
-                      child: const Icon(Icons.broken_image, color: Colors.grey),
-                    );
-                  },
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    post.images.first,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 200,
+                        color: isDark ? Colors.white10 : Colors.black12,
+                        child: Icon(Icons.broken_image, color: subTextColor),
+                      );
+                    },
+                  ),
                 ),
               ),
 
@@ -213,13 +225,13 @@ class PostPreviewSection extends StatelessWidget {
                   Icon(
                     Icons.comment_outlined,
                     size: 18,
-                    color: Colors.white.withOpacity(0.6),
+                    color: subTextColor,
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    '${post.commentCount} comments',
+                    '${post.commentCount} ${SC.tr('comments_count')}',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
+                      color: subTextColor,
                       fontSize: 13,
                     ),
                   ),
@@ -231,14 +243,15 @@ class PostPreviewSection extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.cyanAccent.withOpacity(0.2),
+                        color: SC.cyan.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        '+${post.images.length - 1} photos',
-                        style: const TextStyle(
-                          color: Colors.cyanAccent,
+                        '+${post.images.length - 1} ${SC.tr('more_photos')}',
+                        style: TextStyle(
+                          color: SC.cyan,
                           fontSize: 12,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),

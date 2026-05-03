@@ -4,6 +4,7 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/banner_model.dart';
 import 'package:typewritertext/typewritertext.dart';
+import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class BannerSlider extends StatefulWidget {
   final List<BannerModel> banners;
@@ -15,7 +16,7 @@ class BannerSlider extends StatefulWidget {
   const BannerSlider({
     super.key,
     required this.banners,
-    this.height = 280,
+    this.height = 240,
     this.autoPlay = true,
     this.autoPlayInterval = const Duration(seconds: 5),
     this.showIndicator = true,
@@ -40,104 +41,114 @@ class _BannerSliderState extends State<BannerSlider> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.banners.isEmpty) {
-      return _buildEmptyState();
-    }
-
-    return Container(
-      // ওপর থেকে কিছুটা নিচে নামানোর জন্য প্যাডিং
-      padding: const EdgeInsets.only(top: 70, bottom: 0),
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          CarouselSlider.builder(
-            carouselController: _controller,
-            itemCount: widget.banners.length,
-            options: CarouselOptions(
-              height: widget.height,
-              autoPlay: widget.autoPlay,
-              autoPlayInterval: widget.autoPlayInterval,
-              autoPlayAnimationDuration: const Duration(milliseconds: 1200),
-              autoPlayCurve: Curves.fastOutSlowIn,
-              enlargeCenterPage: true,
-              enlargeFactor: 0.2, // স্লাইড বড় করার ফ্যাক্টর কিছুটা কমানো হয়েছে উইডথ বাড়াতে
-
-              // ================= UPDATED WIDTH =================
-              viewportFraction: 1, // ০.৮৫ থেকে ০.৯৫ করা হয়েছে যাতে উইডথ বেড়ে যায়
-              // =================================================
-
-              onPageChanged: (index, reason) => setState(() => _currentIndex = index),
-            ),
-            itemBuilder: (context, index, realIndex) {
-              final banner = widget.banners[index];
-              return _buildPremiumBannerCard(banner, index == _currentIndex);
-            },
-          ),
-
-          // স্টাইলিশ নিয়ন ইন্ডিকেটর
-          if (widget.showIndicator && widget.banners.length > 1)
-            Positioned(
-              bottom: 0,
-              child: _buildIndicator(),
-            ),
-        ],
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildBody(context),
       ),
     );
   }
 
+  Widget _buildBody(BuildContext context) {
+    if (widget.banners.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return Stack(
+      alignment: Alignment.bottomCenter,
+      children: [
+        CarouselSlider.builder(
+          carouselController: _controller,
+          itemCount: widget.banners.length,
+          options: CarouselOptions(
+            height: widget.height,
+            autoPlay: widget.autoPlay,
+            autoPlayInterval: widget.autoPlayInterval,
+            autoPlayAnimationDuration: const Duration(milliseconds: 1200),
+            autoPlayCurve: Curves.fastOutSlowIn,
+            enlargeCenterPage: true,
+            enlargeFactor: 0.2,
+            viewportFraction: 1,
+            onPageChanged: (index, reason) =>
+                setState(() => _currentIndex = index),
+          ),
+          itemBuilder: (context, index, realIndex) {
+            final banner = widget.banners[index];
+            return _buildPremiumBannerCard(
+                banner, index == _currentIndex);
+          },
+        ),
+        if (widget.showIndicator && widget.banners.length > 1)
+          Positioned(
+            bottom: 8,
+            child: _buildIndicator(),
+          ),
+      ],
+    );
+  }
+
   Widget _buildPremiumBannerCard(BannerModel banner, bool isActive) {
+    final isDark = SC.isDark;
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.1)
+        : Colors.black.withValues(alpha: 0.08);
+
     return AnimatedScale(
-      scale: isActive ? 1.0 : 0.95, // ইন-অ্যাক্টিভ কার্ডের স্কেল
+      scale: isActive ? 1.0 : 0.95,
       duration: const Duration(milliseconds: 600),
       child: GestureDetector(
         onTap: () => _handleBannerTap(banner),
         child: Container(
-          width: double.infinity, // স্লাইডারের এভেলেবল ফুল উইডথ নিবে
-          margin: const EdgeInsets.symmetric(horizontal: 5), // স্লাইডগুলোর মধ্যে হালকা গ্যাপ
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(25), // কর্নার রেডিয়াস সামঞ্জস্যপূর্ণ করা হয়েছে
+            borderRadius: BorderRadius.circular(25),
             border: Border.all(
-              color: isActive ? Colors.cyanAccent.withOpacity(0.3) : Colors.white10,
+              color: isActive
+                  ? SC.cyan.withValues(alpha: 0.3)
+                  : borderColor,
               width: 1.5,
             ),
             boxShadow: [
-              if (isActive) // শুধু অ্যাক্টিভ কার্ডে গ্লো ইফেক্ট
+              if (isActive)
                 BoxShadow(
-                  color: Colors.cyanAccent.withOpacity(0.15),
+                  color: SC.cyan.withValues(alpha: 0.15),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 15,
                 offset: const Offset(0, 8),
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(24), // বর্ডার থেকে ১ পিক্সেল কম রাখা হয়েছে ফিনিশিংয়ের জন্য
+            borderRadius: BorderRadius.circular(24),
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // ব্যাকগ্রাউন্ড ইমেজ জুম এনিমেশন
                 AnimatedScale(
-                  scale: isActive ? 1.0 : 1.1, // অ্যাক্টিভ হলে হালকা জুম আউট হয়ে ডিটেইল দেখাবে
+                  scale: isActive ? 1.0 : 1.1,
                   duration: const Duration(seconds: 4),
                   child: Image.network(
                     banner.imageUrl,
-                    fit: BoxFit.cover, // পুরো কার্ড জুড়ে ফিট হবে
+                    fit: BoxFit.cover,
                     errorBuilder: (ctx, _, __) => Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
-                        ),
+                      decoration: BoxDecoration(
+                        gradient: SC.currentGradient,
                       ),
-                      child: const Icon(Icons.broken_image, color: Colors.white10, size: 40),
+                      child: Icon(
+                        Icons.broken_image,
+                        color: isDark
+                            ? Colors.white10
+                            : Colors.black12,
+                        size: 40,
+                      ),
                     ),
                   ),
                 ),
-
-                // গ্রেডিয়েন্ট এবং টেক্সট প্যানেল
                 _buildOverlaidGradient(),
                 _buildGlassInfoPanel(banner, isActive),
               ],
@@ -155,18 +166,16 @@ class _BannerSliderState extends State<BannerSlider> {
           begin: Alignment.bottomCenter,
           end: Alignment.topCenter,
           colors: [
-            Colors.black.withOpacity(0.9),
-            Colors.black.withOpacity(0.4),
+            Colors.black.withValues(alpha: 0.9),
+            Colors.black.withValues(alpha: 0.4),
             Colors.transparent,
-            Colors.cyanAccent.withOpacity(0.05),
+            SC.cyan.withValues(alpha: 0.05),
           ],
           stops: const [0.0, 0.4, 0.7, 1.0],
         ),
       ),
     );
   }
-
-   // নিশ্চিত করুন এই ইমপোর্টটি আছে
 
   Widget _buildGlassInfoPanel(BannerModel banner, bool isActive) {
     return Positioned(
@@ -182,21 +191,15 @@ class _BannerSliderState extends State<BannerSlider> {
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 2, sigmaY: 2),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.2),
+                  color: Colors.white.withValues(alpha: 0.2),
                   width: 1.0,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
               child: Row(
                 children: [
@@ -205,15 +208,13 @@ class _BannerSliderState extends State<BannerSlider> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // টাইটেল টাইপিং এনিমেশন
                         if (banner.title != null && isActive)
                           TypeWriterText(
-                            // UniqueKey ব্যবহার করা হয়েছে যাতে স্লাইড চেঞ্জ হলেই টাইপিং শুরু হয়
                             key: UniqueKey(),
                             text: Text(
                               banner.title!.toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.cyanAccent,
+                              style: TextStyle(
+                                color: SC.cyan,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 1.2,
@@ -221,29 +222,30 @@ class _BannerSliderState extends State<BannerSlider> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            duration: const Duration(milliseconds: 50),
+                            duration:
+                            const Duration(milliseconds: 50),
                           )
                         else if (banner.title != null)
                           const SizedBox(height: 18),
 
                         if (banner.subtitle != null) ...[
                           const SizedBox(height: 2),
-
-                          // সাবটাইটেল টাইপিং এনিমেশন
                           if (isActive)
                             TypeWriterText(
-                              key: UniqueKey(), // নতুন কি মানেই নতুন করে টাইপিং শুরু
+                              key: UniqueKey(),
                               text: Text(
                                 banner.subtitle!,
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.9),
+                                  color: Colors.white
+                                      .withValues(alpha: 0.9),
                                   fontSize: 11,
                                   fontWeight: FontWeight.w400,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              duration: const Duration(milliseconds: 30),
+                              duration:
+                              const Duration(milliseconds: 30),
                             )
                           else
                             const SizedBox(height: 14),
@@ -264,7 +266,7 @@ class _BannerSliderState extends State<BannerSlider> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: widget.banners.asMap().entries.map((entry) {
-        bool isSelected = _currentIndex == entry.key;
+        final isSelected = _currentIndex == entry.key;
         return GestureDetector(
           onTap: () => _controller.animateToPage(entry.key),
           child: AnimatedContainer(
@@ -275,12 +277,15 @@ class _BannerSliderState extends State<BannerSlider> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
               gradient: isSelected
-                  ? const LinearGradient(colors: [Colors.cyanAccent, Colors.blueAccent])
-                  : LinearGradient(colors: [Colors.white24, Colors.white.withOpacity(0.1)]),
+                  ? LinearGradient(colors: [SC.cyan, SC.blue])
+                  : LinearGradient(colors: [
+                Colors.white24,
+                Colors.white.withValues(alpha: 0.1)
+              ]),
               boxShadow: isSelected
                   ? [
                 BoxShadow(
-                  color: Colors.cyanAccent.withOpacity(0.5),
+                  color: SC.cyan.withValues(alpha: 0.5),
                   blurRadius: 12,
                   spreadRadius: 2,
                 )
@@ -294,21 +299,29 @@ class _BannerSliderState extends State<BannerSlider> {
   }
 
   Widget _buildEmptyState() {
+    final isDark    = SC.isDark;
+    final textColor = isDark ? Colors.white24 : Colors.black26;
+
     return Container(
       height: widget.height,
-      margin: const EdgeInsets.only(top: 30, left: 20, right: 20),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: const Color(0xFF0F2027),
-        borderRadius: BorderRadius.circular(35),
-        border: Border.all(color: Colors.white10),
+        color: isDark
+            ? SC.bgMid
+            : Colors.black.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(
+            color: isDark ? Colors.white10 : Colors.black12),
       ),
-      child: const Center(
+      child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.collections_outlined, color: Colors.white10, size: 50),
-            SizedBox(height: 10),
-            Text('কোনো নতুন অফার নেই', style: TextStyle(color: Colors.white24)),
+            Icon(Icons.collections_outlined,
+                color: textColor, size: 50),
+            const SizedBox(height: 10),
+            Text(SC.tr('no_new_offers'),
+                style: TextStyle(color: textColor)),
           ],
         ),
       ),

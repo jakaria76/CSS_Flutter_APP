@@ -1,8 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:css/models/complaint_model.dart';
 import 'package:css/services/complaint_service.dart';
-import 'package:css/pages/complaints/ManageComplaintPage.dart'; // ✅ Import added
+import 'package:css/pages/complaints/ManageComplaintPage.dart';
+import '../SettingsPage/settings_constants.dart'; // পাথ চেক করুন
 
 class AdminComplaintsPage extends StatefulWidget {
   const AdminComplaintsPage({super.key});
@@ -35,6 +37,7 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
   }
 
   Future<void> _loadComplaints() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -55,749 +58,213 @@ class _AdminComplaintsPageState extends State<AdminComplaintsPage>
           _isLoading = false;
           _errorMessage = e.toString();
         });
-        _showSnackBar('Error loading complaints: $e', isError: true);
+        SC.toast(context, '${SC.tr('load_error')}: $e', SC.red);
       }
     }
   }
 
   void _filterComplaints() {
+    if (!mounted) return;
     setState(() {
       switch (_tabController.index) {
-        case 0: // All
-          _filteredComplaints = _allComplaints;
-          break;
-        case 1: // Pending
-          _filteredComplaints =
-              _allComplaints.where((c) => c.status == 'pending').toList();
-          break;
-        case 2: // Reviewed
-          _filteredComplaints =
-              _allComplaints.where((c) => c.status == 'reviewed').toList();
-          break;
-        case 3: // Resolved
-          _filteredComplaints =
-              _allComplaints.where((c) => c.status == 'resolved').toList();
-          break;
+        case 0: _filteredComplaints = _allComplaints; break;
+        case 1: _filteredComplaints = _allComplaints.where((c) => c.status == 'pending').toList(); break;
+        case 2: _filteredComplaints = _allComplaints.where((c) => c.status == 'reviewed').toList(); break;
+        case 3: _filteredComplaints = _allComplaints.where((c) => c.status == 'resolved').toList(); break;
       }
     });
   }
 
-  Future<void> _updateStatus(Complaint complaint, String newStatus) async {
-    try {
-      await _complaintService.updateComplaintStatus(
-        complaintId: complaint.id,
-        status: newStatus,
-      );
-      if (mounted) {
-        _showSnackBar('Status updated successfully');
-        _loadComplaints();
-      }
-    } catch (e) {
-      if (mounted) {
-        _showSnackBar('Failed to update status: $e', isError: true);
-      }
-    }
-  }
-
-  Future<void> _showReplyDialog(Complaint complaint) async {
-    final replyController = TextEditingController(text: complaint.adminReply);
-
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: AlertDialog(
-          backgroundColor: const Color(0xFF203A43),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Text(
-            'Admin Reply',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Reply to: ${complaint.userFullName ?? "Unknown User"}',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Subject: ${complaint.title}',
-                style: TextStyle(
-                  color: Colors.cyanAccent.withOpacity(0.8),
-                  fontSize: 11,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: replyController,
-                maxLines: 4,
-                autofocus: true,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Type your reply...',
-                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-                  filled: true,
-                  fillColor: Colors.white.withOpacity(0.05),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.cyanAccent, width: 2),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                'Cancel',
-                style: TextStyle(color: Colors.white60),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (replyController.text.trim().isEmpty) {
-                  _showSnackBar('Please enter a reply', isError: true);
-                  return;
-                }
-
-                try {
-                  await _complaintService.updateComplaintStatus(
-                    complaintId: complaint.id,
-                    status: complaint.status,
-                    adminReply: replyController.text.trim(),
-                  );
-                  if (mounted) {
-                    Navigator.pop(context);
-                    _showSnackBar('Reply sent successfully');
-                    _loadComplaints();
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    _showSnackBar('Failed to send reply: $e', isError: true);
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.cyanAccent,
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: const Text(
-                'Send',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF0F2027),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF132D46),
-        title: const Text(
-          'Manage Complaints',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
-            onPressed: _loadComplaints,
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.cyanAccent,
-          labelColor: Colors.cyanAccent,
-          unselectedLabelColor: Colors.white60,
-          isScrollable: false,
-          labelStyle: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-          unselectedLabelStyle: const TextStyle(
-            fontSize: 12,
-          ),
-          tabs: [
-            Tab(text: 'All (${_allComplaints.length})'),
-            Tab(
-                text:
-                'Pending (${_allComplaints.where((c) => c.status == 'pending').length})'),
-            Tab(
-                text:
-                'Reviewed (${_allComplaints.where((c) => c.status == 'reviewed').length})'),
-            Tab(
-                text:
-                'Resolved (${_allComplaints.where((c) => c.status == 'resolved').length})'),
-          ],
-        ),
-      ),
-      body: _isLoading
-          ? const Center(
-        child: CircularProgressIndicator(color: Colors.cyanAccent),
-      )
-          : _errorMessage != null
-          ? _buildErrorState()
-          : RefreshIndicator(
-        onRefresh: _loadComplaints,
-        color: Colors.cyanAccent,
-        child: _filteredComplaints.isEmpty
-            ? _buildEmptyState()
-            : ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: _filteredComplaints.length,
-          itemBuilder: (context, index) {
-            return _buildComplaintCard(
-                _filteredComplaints[index]);
-          },
-        ),
+    return ValueListenableBuilder<String>(
+      valueListenable: SC.themeModeNotifier,
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildScaffold(),
       ),
     );
   }
 
-  Widget _buildErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 80,
-              color: Colors.redAccent.withOpacity(0.5),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Error Loading Complaints',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _errorMessage ?? 'Something went wrong',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
+  Widget _buildScaffold() {
+    final isDark = SC.isDark;
+    final bgColor = isDark ? const Color(0xFF0F2027) : const Color(0xFFF0F4FF);
+    final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: bgColor,
+        appBar: AppBar(
+          backgroundColor: isDark ? const Color(0xFF132D46) : Colors.white,
+          elevation: 0,
+          title: Text(SC.tr('manage_complaints_title'),
+              style: TextStyle(fontWeight: FontWeight.bold, color: textColor)),
+          actions: [
+            IconButton(
+              icon: Icon(Icons.refresh_rounded, color: textColor),
               onPressed: _loadComplaints,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Try Again'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.cyanAccent,
-                foregroundColor: const Color(0xFF0F2027),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-              ),
             ),
           ],
+          bottom: TabBar(
+            controller: _tabController,
+            indicatorColor: Colors.cyanAccent,
+            labelColor: Colors.cyanAccent,
+            unselectedLabelColor: textColor.withOpacity(0.5),
+            isScrollable: true,
+            tabs: [
+              Tab(text: SC.tr('all_tab').replaceAll('@count', _allComplaints.length.toString())),
+              Tab(text: SC.tr('pending_tab').replaceAll('@count', _allComplaints.where((c) => c.status == 'pending').length.toString())),
+              Tab(text: SC.tr('reviewed_tab').replaceAll('@count', _allComplaints.where((c) => c.status == 'reviewed').length.toString())),
+              Tab(text: SC.tr('resolved_tab').replaceAll('@count', _allComplaints.where((c) => c.status == 'resolved').length.toString())),
+            ],
+          ),
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator(color: Colors.cyanAccent))
+            : _errorMessage != null
+            ? _buildErrorState(textColor)
+            : RefreshIndicator(
+          onRefresh: _loadComplaints,
+          color: Colors.cyanAccent,
+          child: _filteredComplaints.isEmpty
+              ? _buildEmptyState(textColor.withOpacity(0.5))
+              : ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: _filteredComplaints.length,
+            itemBuilder: (context, index) => _buildComplaintCard(_filteredComplaints[index], isDark, textColor),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    String emptyMessage;
-    switch (_tabController.index) {
-      case 1:
-        emptyMessage = 'No pending complaints';
-        break;
-      case 2:
-        emptyMessage = 'No reviewed complaints';
-        break;
-      case 3:
-        emptyMessage = 'No resolved complaints';
-        break;
-      default:
-        emptyMessage = 'No complaints found';
-    }
+  Widget _buildEmptyState(Color subColor) {
+    String msg = SC.tr('no_complaints_found');
+    if (_tabController.index == 1) msg = SC.tr('no_pending_msg');
+    if (_tabController.index == 2) msg = SC.tr('no_reviewed_msg');
+    if (_tabController.index == 3) msg = SC.tr('no_resolved_msg');
 
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.inbox_outlined,
-            size: 80,
-            color: Colors.white.withOpacity(0.2),
-          ),
+          Icon(Icons.inbox_outlined, size: 80, color: subColor.withOpacity(0.2)),
           const SizedBox(height: 16),
-          Text(
-            emptyMessage,
-            style: const TextStyle(
-              color: Colors.white60,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          Text(msg, style: TextStyle(color: subColor, fontSize: 16, fontWeight: FontWeight.w500)),
         ],
       ),
     );
   }
 
-  Widget _buildComplaintCard(Complaint complaint) {
+  Widget _buildComplaintCard(Complaint complaint, bool isDark, Color textColor) {
+    final cardBg = isDark ? Colors.white.withOpacity(0.05) : Colors.white;
+    final borderColor = isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.08);
+
     return GestureDetector(
-      // ✅ Navigate to edit page on tap
       onTap: () async {
         final result = await Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => ManageComplaintPage(complaint: complaint),
-          ),
+          MaterialPageRoute(builder: (context) => ManageComplaintPage(complaint: complaint)),
         );
-
-        // Refresh if complaint was updated/deleted
-        if (result == true) {
-          _loadComplaints();
-        }
+        if (result == true) _loadComplaints();
       },
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: ClipRRect(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: cardBg,
           borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // User Info Header with Profile Picture
-                  Row(
+          border: Border.all(color: borderColor),
+          boxShadow: isDark ? null : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: Colors.cyanAccent.withOpacity(0.1),
+                  backgroundImage: complaint.userProfileImageUrl != null ? NetworkImage(complaint.userProfileImageUrl!) : null,
+                  child: complaint.userProfileImageUrl == null ? Icon(Icons.person, color: textColor.withOpacity(0.3)) : null,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Profile Picture
-                      Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.cyanAccent.withOpacity(0.3),
-                            width: 2.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.cyanAccent.withOpacity(0.2),
-                              blurRadius: 8,
-                              spreadRadius: 1,
-                            ),
-                          ],
-                        ),
-                        child: CircleAvatar(
-                          radius: 26,
-                          backgroundColor: const Color(0xFF1A2634),
-                          backgroundImage: complaint.userProfileImageUrl != null &&
-                              complaint.userProfileImageUrl!.isNotEmpty
-                              ? NetworkImage(complaint.userProfileImageUrl!)
-                              : null,
-                          child: complaint.userProfileImageUrl == null ||
-                              complaint.userProfileImageUrl!.isEmpty
-                              ? Icon(
-                            Icons.person_rounded,
-                            size: 30,
-                            color: Colors.white.withOpacity(0.3),
-                          )
-                              : null,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      // User Name and Category
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              complaint.userFullName ?? 'Anonymous User',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.category_outlined,
-                                  size: 14,
-                                  color: Colors.cyanAccent.withOpacity(0.7),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  complaint.getCategoryBangla(),
-                                  style: TextStyle(
-                                    color: Colors.cyanAccent.withOpacity(0.7),
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Edit Icon (indicates clickable)
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.cyanAccent.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.edit,
-                          color: Colors.cyanAccent,
-                          size: 18,
-                        ),
-                      ),
+                      Text(complaint.userFullName ?? 'User', style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
+                      Text(complaint.getCategoryBangla(), style: const TextStyle(color: Colors.cyanAccent, fontSize: 13)),
                     ],
                   ),
-                  const SizedBox(height: 18),
-
-                  // Complaint Title
-                  Text(
-                    complaint.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      height: 1.3,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-
-                  // Complaint Description
-                  Text(
-                    complaint.description,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      height: 1.5,
-                    ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  // Complaint Image (if exists)
-                  if (complaint.imageUrl != null &&
-                      complaint.imageUrl!.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: Image.network(
-                        complaint.imageUrl!,
-                        height: 180,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Container(
-                            height: 180,
-                            color: Colors.white.withOpacity(0.05),
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                color: Colors.cyanAccent,
-                                strokeWidth: 2,
-                              ),
-                            ),
-                          );
-                        },
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          height: 180,
-                          color: Colors.white.withOpacity(0.05),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.image_not_supported_outlined,
-                                color: Colors.white.withOpacity(0.3),
-                                size: 40,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Image not available',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.3),
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 14),
-
-                  // Status and Date Row
-                  Row(
-                    children: [
-                      // Status Badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                          _getStatusColor(complaint.status).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color:
-                            _getStatusColor(complaint.status).withOpacity(0.5),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _getStatusIcon(complaint.status),
-                              size: 14,
-                              color: _getStatusColor(complaint.status),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              complaint.getStatusBangla(),
-                              style: TextStyle(
-                                color: _getStatusColor(complaint.status),
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      // Date
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.access_time_rounded,
-                              size: 14,
-                              color: Colors.white.withOpacity(0.5),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _formatDate(complaint.createdAt),
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.5),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // Admin Reply (if exists)
-                  if (complaint.adminReply != null &&
-                      complaint.adminReply!.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Colors.blueAccent.withOpacity(0.15),
-                            Colors.blueAccent.withOpacity(0.05),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: Colors.blueAccent.withOpacity(0.3),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.blueAccent.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              Icons.admin_panel_settings_rounded,
-                              size: 18,
-                              color: Colors.blueAccent.withOpacity(0.9),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Admin Reply',
-                                  style: TextStyle(
-                                    color: Colors.blueAccent.withOpacity(0.9),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  complaint.adminReply!,
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 14,
-                                    height: 1.4,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                ),
+                Icon(Icons.edit_note, color: Colors.cyanAccent.withOpacity(0.5)),
+              ],
             ),
-          ),
+            const SizedBox(height: 15),
+            Text(complaint.title, style: TextStyle(color: textColor, fontSize: 17, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(complaint.description, style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 14), maxLines: 2, overflow: TextOverflow.ellipsis),
+            if (complaint.imageUrl != null && complaint.imageUrl!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(complaint.imageUrl!, height: 150, width: double.infinity, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(height: 50, color: Colors.grey.withOpacity(0.1), child: Center(child: Text(SC.tr('image_not_available'))))),
+              ),
+            ],
+            const SizedBox(height: 15),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildStatusBadge(complaint.status),
+                Text(_formatDate(complaint.createdAt), style: TextStyle(color: textColor.withOpacity(0.4), fontSize: 12)),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // Helper method for status icons
-  IconData _getStatusIcon(String status) {
+  Widget _buildStatusBadge(String status) {
+    Color color;
     switch (status) {
-      case 'pending':
-        return Icons.pending_outlined;
-      case 'reviewed':
-        return Icons.rate_review_outlined;
-      case 'resolved':
-        return Icons.check_circle_outline;
-      default:
-        return Icons.info_outline;
+      case 'pending': color = Colors.orangeAccent; break;
+      case 'reviewed': color = Colors.blueAccent; break;
+      case 'resolved': color = Colors.greenAccent; break;
+      default: color = Colors.grey;
     }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(8), border: Border.all(color: color.withOpacity(0.5))),
+      child: Text(status.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+    );
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'pending':
-        return Colors.orangeAccent;
-      case 'reviewed':
-        return Colors.blueAccent;
-      case 'resolved':
-        return Colors.greenAccent;
-      default:
-        return Colors.grey;
-    }
+  Widget _buildErrorState(Color textColor) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, size: 60, color: Colors.redAccent),
+          const SizedBox(height: 16),
+          Text(SC.tr('load_error'), style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          ElevatedButton(onPressed: _loadComplaints, child: Text(SC.tr('retry'))),
+        ],
+      ),
+    );
   }
 
   String _formatDate(DateTime date) {
-    try {
-      final now = DateTime.now();
-      final difference = now.difference(date);
-
-      if (difference.inDays == 0) {
-        if (difference.inHours == 0) {
-          if (difference.inMinutes == 0) {
-            return 'এখনই';
-          }
-          return '${difference.inMinutes} মিনিট আগে';
-        }
-        return '${difference.inHours} ঘণ্টা আগে';
-      } else if (difference.inDays == 1) {
-        return 'গতকাল';
-      } else if (difference.inDays < 7) {
-        return '${difference.inDays} দিন আগে';
-      } else if (difference.inDays < 30) {
-        final weeks = (difference.inDays / 7).floor();
-        return '$weeks সপ্তাহ আগে';
-      } else if (difference.inDays < 365) {
-        final months = (difference.inDays / 30).floor();
-        return '$months মাস আগে';
-      } else {
-        final years = (difference.inDays / 365).floor();
-        return '$years বছর আগে';
-      }
-    } catch (e) {
-      return '${date.day}/${date.month}/${date.year}';
-    }
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 1) return SC.tr('just_now');
+    if (diff.inHours < 1) return SC.tr('min_ago').replaceAll('@min', diff.inMinutes.toString());
+    if (diff.inDays < 1) return SC.tr('hour_ago').replaceAll('@hour', diff.inHours.toString());
+    if (diff.inDays == 1) return SC.tr('yesterday');
+    return SC.tr('day_ago').replaceAll('@day', diff.inDays.toString());
   }
 }

@@ -4,25 +4,19 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:css/models/post_model.dart';
 import 'package:css/models/comment_model.dart';
-import 'package:path/path.dart' as path;
+import 'cloudinary_service.dart';
 
 class FeedService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
-  // =====================================================
-  // POSTS
-  // =====================================================
-
+  // ─── FETCH POSTS ────────────────────────────────────────────
   Future<List<Post>> fetchPosts({int limit = 10, int offset = 0}) async {
     try {
       final response = await _supabase
           .from('posts')
           .select('''
             *,
-            post_images (
-              image_url,
-              display_order
-            ),
+            post_images (image_url, display_order),
             comments (count)
           ''')
           .order('created_at', ascending: false)
@@ -35,7 +29,28 @@ class FeedService {
     }
   }
 
-  Future<void> createPost({
+  // ─── FETCH SINGLE POST ──────────────────────────────────────
+  Future<Post> fetchPostById(String postId) async {
+    try {
+      final response = await _supabase
+          .from('posts')
+          .select('''
+            *,
+            post_images (image_url, display_order),
+            comments (count)
+          ''')
+          .eq('id', postId)
+          .single();
+
+      return Post.fromMap(response);
+    } catch (e) {
+      debugPrint('Error fetching post by id: $e');
+      throw Exception('Failed to fetch post: $e');
+    }
+  }
+
+  // ─── CREATE POST ────────────────────────────────────────────
+  Future<String> createPost({
     required String caption,
     required List<XFile> images,
   }) async {
@@ -43,114 +58,40 @@ class FeedService {
     if (userId == null) throw Exception('User not authenticated');
 
     try {
-      // 1. Create post
-      final postResponse = await _supabase
-          .from('posts')
-          .insert({
-        'admin_id': userId,
-        'caption': caption.isEmpty ? null : caption,
+      final postResponse = await _supabase.from('posts').insert({
+        'admin_id'  : userId,
+        'caption'   : caption.isEmpty ? null : caption,
         'created_at': DateTime.now().toUtc().toIso8601String(),
-      })
-          .select()
-          .single();
+      }).select().single();
 
       final postId = postResponse['id'] as String;
 
-      // 2. Upload images if any
       if (images.isNotEmpty) {
-        for (int i = 0; i < images.length; i++) {
-          final imageUrl = await _uploadImage(images[i], postId, i);
+        final List<File> files =
+        images.map((img) => File(img.path)).toList();
+        final List<String> uploadedUrls =
+        await CloudinaryService.uploadMultipleImages(
+          files,
+          folder: '${CloudinaryService.folderPosts}/$postId',
+        );
 
+        for (int i = 0; i < uploadedUrls.length; i++) {
           await _supabase.from('post_images').insert({
-            'post_id': postId,
-            'image_url': imageUrl,
+            'post_id'      : postId,
+            'image_url'    : uploadedUrls[i],
             'display_order': i,
           });
         }
       }
+
+      return postId;
     } catch (e) {
       debugPrint('Error creating post: $e');
       throw Exception('Failed to create post: $e');
     }
   }
 
-  /// ✅ FIXED: Improved image upload with proper MIME type detection
-  Future<String> _uploadImage(XFile image, String postId, int index) async {
-    try {
-      // Read file as bytes
-      final bytes = kIsWeb
-          ? await image.readAsBytes()
-          : await File(image.path).readAsBytes();
-
-      // Get file extension
-      String fileExt = path.extension(image.path).toLowerCase();
-      if (fileExt.startsWith('.')) {
-        fileExt = fileExt.substring(1); // Remove the dot
-      }
-
-      // ✅ Validate and normalize file extension
-      String contentType;
-      switch (fileExt) {
-        case 'jpg':
-        case 'jpeg':
-          contentType = 'image/jpeg';
-          fileExt = 'jpg';
-          break;
-        case 'png':
-          contentType = 'image/png';
-          break;
-        case 'gif':
-          contentType = 'image/gif';
-          break;
-        case 'webp':
-          contentType = 'image/webp';
-          break;
-        default:
-        // If unknown extension, default to jpeg
-          contentType = 'image/jpeg';
-          fileExt = 'jpg';
-      }
-
-      // Generate unique filename
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = '${postId}_${index}_$timestamp.$fileExt';
-      final filePath = 'post_images/$fileName';
-
-      debugPrint('📸 Uploading image: $fileName (${bytes.length} bytes, $contentType)');
-
-      // Upload to Supabase Storage
-      final uploadResponse = await _supabase.storage
-          .from('posts')
-          .uploadBinary(
-        filePath,
-        bytes,
-        fileOptions: FileOptions(
-          contentType: contentType,
-          upsert: false, // ✅ Changed to false to avoid conflicts
-        ),
-      );
-
-      debugPrint('✅ Upload successful: $uploadResponse');
-
-      // Get public URL
-      final publicUrl = _supabase.storage
-          .from('posts')
-          .getPublicUrl(filePath);
-
-      debugPrint('✅ Public URL: $publicUrl');
-
-      return publicUrl;
-    } catch (e) {
-      debugPrint('❌ Error uploading image: $e');
-      // Re-throw with more context
-      if (e.toString().contains('Invalid media type')) {
-        throw Exception('Invalid image format. Please use JPG, PNG, or WebP images.');
-      }
-      throw Exception('Failed to upload image: $e');
-    }
-  }
-
-  /// ✅ Update existing post
+  // ─── UPDATE POST ────────────────────────────────────────────
   Future<void> updatePost({
     required String postId,
     required String caption,
@@ -161,51 +102,22 @@ class FeedService {
     if (userId == null) throw Exception('User not authenticated');
 
     try {
-      // 1. Update post caption
-      await _supabase
-          .from('posts')
-          .update({
-        'caption': caption.isEmpty ? null : caption,
+      await _supabase.from('posts').update({
+        'caption'   : caption.isEmpty ? null : caption,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
-      })
-          .eq('id', postId)
-          .eq('admin_id', userId); // Ensure user owns the post
+      }).eq('id', postId).eq('admin_id', userId);
 
-      // 2. Delete removed images from storage and database
+      // Cloudinary থেকে delete করো + DB থেকেও
       for (final imageUrl in imagesToDelete) {
-        try {
-          // Extract file path from URL
-          final uri = Uri.parse(imageUrl);
-          final pathSegments = uri.pathSegments;
-
-          // Find 'posts' bucket and get the path after it
-          final postsIndex = pathSegments.indexOf('posts');
-          if (postsIndex != -1 && postsIndex < pathSegments.length - 1) {
-            final filePath = pathSegments.sublist(postsIndex + 1).join('/');
-
-            // Delete from storage
-            await _supabase.storage.from('posts').remove([filePath]);
-
-            debugPrint('✅ Deleted image from storage: $filePath');
-          }
-
-          // Delete from database
-          await _supabase
-              .from('post_images')
-              .delete()
-              .eq('post_id', postId)
-              .eq('image_url', imageUrl);
-
-          debugPrint('✅ Deleted image from database: $imageUrl');
-        } catch (e) {
-          debugPrint('⚠️ Error deleting image $imageUrl: $e');
-          // Continue even if one image fails
-        }
+        await CloudinaryService.deleteFile(imageUrl, resourceType: 'image');
+        await _supabase
+            .from('post_images')
+            .delete()
+            .eq('post_id', postId)
+            .eq('image_url', imageUrl);
       }
 
-      // 3. Upload new images
       if (newImages.isNotEmpty) {
-        // Get current max display_order
         final existingImages = await _supabase
             .from('post_images')
             .select('display_order')
@@ -214,85 +126,81 @@ class FeedService {
             .limit(1);
 
         int startOrder = 0;
-        if (existingImages.isNotEmpty && existingImages[0]['display_order'] != null) {
+        if (existingImages.isNotEmpty &&
+            existingImages[0]['display_order'] != null) {
           startOrder = (existingImages[0]['display_order'] as int) + 1;
         }
 
-        for (int i = 0; i < newImages.length; i++) {
-          final imageUrl = await _uploadImage(newImages[i], postId, startOrder + i);
+        final List<File> files =
+        newImages.map((img) => File(img.path)).toList();
+        final List<String> uploadedUrls =
+        await CloudinaryService.uploadMultipleImages(
+          files,
+          folder: '${CloudinaryService.folderPosts}/$postId',
+        );
 
+        for (int i = 0; i < uploadedUrls.length; i++) {
           await _supabase.from('post_images').insert({
-            'post_id': postId,
-            'image_url': imageUrl,
+            'post_id'      : postId,
+            'image_url'    : uploadedUrls[i],
             'display_order': startOrder + i,
           });
         }
       }
-
-      debugPrint('✅ Post updated successfully');
     } catch (e) {
-      debugPrint('❌ Error updating post: $e');
+      debugPrint('Error updating post: $e');
       throw Exception('Failed to update post: $e');
     }
   }
 
-  /// ✅ Delete post (with all images and comments)
+  // ─── DELETE POST (Cloudinary + DB) ──────────────────────────
   Future<void> deletePost(String postId) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) throw Exception('User not authenticated');
 
     try {
-      // 1. Get all images for this post
+      // ১. সব image URLs fetch করো
       final images = await _supabase
           .from('post_images')
           .select('image_url')
           .eq('post_id', postId);
 
-      // 2. Delete all images from storage
-      for (final imageData in images) {
-        final imageUrl = imageData['image_url'] as String;
-        try {
-          // Extract file path from URL
-          final uri = Uri.parse(imageUrl);
-          final pathSegments = uri.pathSegments;
+      // ২. Cloudinary থেকে সব delete করো (parallel)
+      final urls = (images as List)
+          .map((e) => e['image_url'] as String? ?? '')
+          .where((url) => url.isNotEmpty)
+          .toList();
 
-          // Find 'posts' bucket and get the path after it
-          final postsIndex = pathSegments.indexOf('posts');
-          if (postsIndex != -1 && postsIndex < pathSegments.length - 1) {
-            final filePath = pathSegments.sublist(postsIndex + 1).join('/');
-
-            // Delete from storage
-            await _supabase.storage.from('posts').remove([filePath]);
-
-            debugPrint('✅ Deleted image from storage: $filePath');
-          }
-        } catch (e) {
-          debugPrint('⚠️ Error deleting image from storage: $e');
-          // Continue even if one image fails
-        }
+      if (urls.isNotEmpty) {
+        await Future.wait(
+          urls.map((url) =>
+              CloudinaryService.deleteFile(url, resourceType: 'image')),
+        );
       }
 
-      // 3. Delete post (CASCADE will delete post_images and comments automatically)
+      // ৩. DB থেকে post delete করো
       await _supabase
           .from('posts')
           .delete()
           .eq('id', postId)
-          .eq('admin_id', userId); // Ensure user owns the post
-
-      debugPrint('✅ Post deleted successfully');
+          .eq('admin_id', userId);
     } catch (e) {
-      debugPrint('❌ Error deleting post: $e');
+      debugPrint('Error deleting post: $e');
       throw Exception('Failed to delete post: $e');
     }
   }
 
-  // =====================================================
-  // COMMENTS - ✅ WITH USER PROFILE INFO
-  // =====================================================
+  // ─── IMAGE URL HELPER ───────────────────────────────────────
+  String getPostImageUrl(String? url) {
+    if (url == null || url.isEmpty) return '';
+    return url.contains('cloudinary.com')
+        ? CloudinaryService.optimizeUrl(url, width: 600)
+        : url;
+  }
 
+  // ─── FETCH COMMENTS ─────────────────────────────────────────
   Future<List<Comment>> fetchComments(String postId) async {
     try {
-      // ✅ Join with profiles table to get user info
       final response = await _supabase
           .from('comments')
           .select('''
@@ -305,18 +213,16 @@ class FeedService {
           .eq('post_id', postId)
           .order('created_at', ascending: true);
 
-      debugPrint('✅ Fetched ${(response as List).length} comments with user profiles');
-
-      return (response as List).map((json) {
-        debugPrint('Comment data: ${json['profiles']}');
-        return Comment.fromMap(json);
-      }).toList();
+      return (response as List)
+          .map((json) => Comment.fromMap(json))
+          .toList();
     } catch (e) {
-      debugPrint('❌ Error fetching comments: $e');
+      debugPrint('Error fetching comments: $e');
       throw Exception('Failed to fetch comments: $e');
     }
   }
 
+  // ─── ADD COMMENT ────────────────────────────────────────────
   Future<void> addComment({
     required String postId,
     required String commentText,
@@ -324,28 +230,20 @@ class FeedService {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) throw Exception('User not authenticated');
 
-    try {
-      await _supabase.from('comments').insert({
-        'post_id': postId,
-        'user_id': userId,
-        'comment_text': commentText,
-        'created_at': DateTime.now().toUtc().toIso8601String(),
-      });
-
-      debugPrint('✅ Comment added successfully');
-    } catch (e) {
-      debugPrint('❌ Error adding comment: $e');
-      throw Exception('Failed to add comment: $e');
-    }
+    await _supabase.from('comments').insert({
+      'post_id'     : postId,
+      'user_id'     : userId,
+      'comment_text': commentText,
+      'created_at'  : DateTime.now().toUtc().toIso8601String(),
+    });
   }
 
+  // ─── DELETE COMMENT ─────────────────────────────────────────
   Future<void> deleteComment(String commentId) async {
     try {
       await _supabase.from('comments').delete().eq('id', commentId);
-
-      debugPrint('✅ Comment deleted successfully');
     } catch (e) {
-      debugPrint('❌ Error deleting comment: $e');
+      debugPrint('Error deleting comment: $e');
       throw Exception('Failed to delete comment: $e');
     }
   }

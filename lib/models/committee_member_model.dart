@@ -1,15 +1,15 @@
 class CommitteeMember {
-  final String id; // int থেকে String করুন (UUID এর জন্য)
+  final String id;
   final String fullName;
   final String position;
-  final String? imagePath; // nullable করুন
-  final String category; // Top, Executive, Members
+  final String? imagePath;
+  final String category;
 
   CommitteeMember({
     required this.id,
     required this.fullName,
     required this.position,
-    this.imagePath, // required সরিয়ে দিন
+    this.imagePath,
     required this.category,
   });
 }
