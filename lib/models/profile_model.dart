@@ -67,32 +67,25 @@ class ProfileModel {
   String? portfolioWebsite;
 
   // ================= PREVIOUS COMMITTEE (only when memberType == 'previous_committee') =====
-  /// কোন position এ ছিলেন — committee position এর same list থেকে
   String? previousPosition;
-  /// কত সাল থেকে — যেমন 2021
   int? tenureFrom;
-  /// কত সাল পর্যন্ত — যেমন 2022
   int? tenureTo;
 
-  // ================= NOTES — প্রতিটি member type এর জন্য আলাদা নোট ======================
-  /// বর্তমান কমিটি সদস্য সম্পর্কে বিশেষ নোট/মন্তব্য
+  // ================= NOTES ======================
   String? presentCommitteeNote;
-  /// প্রাক্তন কমিটি সদস্য সম্পর্কে বিশেষ নোট/মন্তব্য
   String? previousCommitteeNote;
 
   // ================= ADVISOR (only when memberType == 'advisor') ==========================
-  /// পেশা — যেমন "Assistant Professor", "Software Engineer", "Doctor"
   String? occupation;
-  /// প্রতিষ্ঠান — যেমন "BUET", "Dhaka Medical College"
   String? institution;
-  /// পদবি/title — যেমন "PhD", "MBBS", "Senior Engineer"
   String? designation;
-  /// বিশেষজ্ঞতার ক্ষেত্র — যেমন "Civil Engineering, Project Management"
   String? expertise;
-  /// কেন/কীভাবে advisor হলেন বা কী বিষয়ে পরামর্শ দেন
   String? advisorNote;
-  /// উপদেষ্টা ক্যাটাগরি — যেমন "Chief", "Academic", "Legal", "Medical" (EditProfilePage এর এরর ফিক্স)
   String? advisorType;
+
+  // ================= VISIBILITY =================
+  /// Values: 'public' | 'private'
+  String? visibility;
 
   // ================= SYSTEM =================
   String? accountStatus;
@@ -145,25 +138,21 @@ class ProfileModel {
     this.hobbies,
     this.facebook,
     this.portfolioWebsite,
-    // previous committee
     this.previousPosition,
     this.tenureFrom,
     this.tenureTo,
-    // notes
     this.presentCommitteeNote,
     this.previousCommitteeNote,
-    // advisor
     this.occupation,
     this.institution,
     this.designation,
     this.expertise,
     this.advisorNote,
-    this.advisorType, // ← Added here
-    // system
+    this.advisorType,
+    this.visibility, // ← Added here
     this.accountStatus,
     this.lastUpdatedDate,
     this.updatedBy,
-    // location
     this.latitude,
     this.longitude,
     this.locationDms,
@@ -175,7 +164,6 @@ class ProfileModel {
   bool get isCommittee      => MemberType.isCommittee(memberType);
   bool get isPreviousMember => MemberType.isPrevious(memberType);
 
-  /// "2021 – 2022" format, previous committee card এ দেখাবে
   String get tenureLabel {
     if (tenureFrom == null && tenureTo == null) return '';
     final from = tenureFrom?.toString() ?? '?';
@@ -209,16 +197,15 @@ class ProfileModel {
     return ProfileModel(
       id: _asString(map['id']) ?? '',
 
-      profileImageUrl: _asString(map['profile_image_url']),
-
+      profileImageUrl:   _asString(map['profile_image_url']),
       fullName:          _asString(map['full_name']),
       fullNameBn:        _asString(map['full_name_bn']),
       memberType:        _asString(map['member_type']),
       committeePosition: _asString(map['committee_position']),
       memberSince:       _asDate(map['member_since']),
 
-      gender:      _asString(map['gender']),
-      dateOfBirth: _asDate(map['date_of_birth']),
+      gender:            _asString(map['gender']),
+      dateOfBirth:       _asDate(map['date_of_birth']),
 
       alternativeMobile: _asString(map['alternative_mobile']),
       presentAddress:    _asString(map['present_address']),
@@ -258,29 +245,26 @@ class ProfileModel {
       facebook:         _asString(map['facebook']),
       portfolioWebsite: _asString(map['portfolio_website']),
 
-      // previous committee
       previousPosition: _asString(map['previous_position']),
       tenureFrom:       _asInt(map['tenure_from']),
       tenureTo:         _asInt(map['tenure_to']),
 
-      // notes
       presentCommitteeNote:  _asString(map['present_committee_note']),
       previousCommitteeNote: _asString(map['previous_committee_note']),
 
-      // advisor
       occupation:  _asString(map['occupation']),
       institution: _asString(map['institution']),
       designation: _asString(map['designation']),
       expertise:   _asString(map['expertise']),
       advisorNote: _asString(map['advisor_note']),
-      advisorType: _asString(map['advisor_type']), // ← Added here
+      advisorType: _asString(map['advisor_type']),
 
-      // system
+      visibility:  _asString(map['visibility']), // ← Added here
+
       accountStatus:   _asString(map['account_status']),
       lastUpdatedDate: _asDate(map['updated_at']),
       updatedBy:       _asString(map['updated_by']),
 
-      // location
       latitude:    _asDouble(map['latitude']),
       longitude:   _asDouble(map['longitude']),
       locationDms: _asString(map['location_dms']),
@@ -292,9 +276,7 @@ class ProfileModel {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-
       'profile_image_url': profileImageUrl,
-
       'full_name':          fullName,
       'full_name_bn':       fullNameBn,
       'member_type':        memberType,
@@ -302,7 +284,6 @@ class ProfileModel {
       'member_since':       memberSince?.toIso8601String(),
       'gender':             gender,
       'date_of_birth':      dateOfBirth?.toIso8601String(),
-
       'alternative_mobile': alternativeMobile,
       'present_address':    presentAddress,
       'permanent_address':  permanentAddress,
@@ -311,54 +292,44 @@ class ProfileModel {
       'facebook_link':      facebookLink,
       'whatsapp_number':    whatsappNumber,
       'email':              email,
-
       'blood_group':                  bloodGroup,
       'last_donation_date':           lastDonationDate?.toIso8601String(),
       'next_available_donation_date': nextAvailableDonationDate?.toIso8601String(),
       'donation_eligibility':         donationEligibility,
       'total_donation_count':         totalDonationCount,
       'preferred_donation_location':  preferredDonationLocation,
-
       'school_name':         schoolName,
       'school_group':        schoolGroup,
       'school_passing_year': schoolPassingYear,
-
       'college_name':         collegeName,
       'college_group':        collegeGroup,
       'college_passing_year': collegePassingYear,
-
       'university_name':  universityName,
       'department':       department,
       'student_id':       studentId,
       'current_year':     currentYear,
       'current_semester': currentSemester,
-
       'short_bio':    shortBio,
       'why_joined':   whyJoined,
       'future_goals': futureGoals,
       'hobbies':      hobbies,
-
       'facebook':          facebook,
       'portfolio_website': portfolioWebsite,
-
-      // previous committee
       'previous_position': previousPosition,
       'tenure_from':       tenureFrom,
       'tenure_to':         tenureTo,
-
-      // notes
       'present_committee_note':  presentCommitteeNote,
       'previous_committee_note': previousCommitteeNote,
-
-      // advisor
       'occupation':   occupation,
       'institution':  institution,
       'designation':  designation,
       'expertise':    expertise,
       'advisor_note': advisorNote,
-      'advisor_type': advisorType, // ← Added here
-
-      // location
+      'advisor_type': advisorType,
+      'visibility':   visibility, // ← Added here
+      'account_status': accountStatus,
+      'updated_at':   lastUpdatedDate?.toIso8601String(),
+      'updated_by':   updatedBy,
       'latitude':     latitude,
       'longitude':    longitude,
       'location_dms': locationDms,

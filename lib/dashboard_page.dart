@@ -39,6 +39,9 @@ import '../widgets/dashboard/emergency_requests_banner_widget.dart';
 import '../widgets/dashboard/blood_dashboard_section_widget.dart';
 import '../widgets/dashboard/about_summary_section_widget.dart';
 
+// ── AI Chat Popup ──────────────────────────────────────────────────────────
+import 'package:css/widgets/ai_chat_popup.dart';
+
 // Pages
 import 'package:css/pages/NoticePage/notice_page.dart';
 import 'package:css/pages/Events/events_list_page.dart';
@@ -135,7 +138,6 @@ class _DashboardPageState extends State<DashboardPage>
   List<Map<String, dynamic>> _emergencyRequests = [];
 
   // ─── Loading States ───────────────────────────────────────────────────────
-  // Single flag — cache loaded = show UI immediately, no section-level flags
   bool _initialLoadDone     = false;
   bool _isLoadingBanners    = true;
   bool _isLoadingNotices    = true;
@@ -156,16 +158,18 @@ class _DashboardPageState extends State<DashboardPage>
   late AnimationController _emergencyPulseController;
   late AnimationController _offlineBannerController;
 
+  // ── AI button animation ────────────────────────────────────────────────────
+  late AnimationController _aiGlowController;
+
   // ─── Lifecycle ────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
 
-    // FIX: fade starts at 1 so no invisible flash; we only animate on first load
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
-      value: 0, // start invisible, fade in once
+      value: 0,
     );
 
     _emergencyPulseController = AnimationController(
@@ -178,16 +182,19 @@ class _DashboardPageState extends State<DashboardPage>
       duration: const Duration(milliseconds: 400),
     );
 
+    // AI button glow animation
+    _aiGlowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2000),
+    )..repeat(reverse: true);
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _initConnectivity();
-      // Show cached data immediately (fast)
       await _loadCachedDataFirst();
-      // Mark initial load done → show UI with cache
       if (mounted) {
         setState(() => _initialLoadDone = true);
         _fadeController.forward(from: 0);
       }
-      // Then silently refresh from network in background
       _loadDashboardData(showFadeAnimation: false);
     });
   }
@@ -198,6 +205,7 @@ class _DashboardPageState extends State<DashboardPage>
     _fadeController.dispose();
     _emergencyPulseController.dispose();
     _offlineBannerController.dispose();
+    _aiGlowController.dispose();
     super.dispose();
   }
 
@@ -228,7 +236,6 @@ class _DashboardPageState extends State<DashboardPage>
         _offlineBannerController.reverse();
       }
     } else {
-      // Set value directly without animation during init
       _offlineBannerController.value = online ? 0.0 : 1.0;
     }
   }
@@ -257,7 +264,6 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   // ─── Cache ────────────────────────────────────────────────────────────────
-  // FIX: Load ALL cache in one batch → single setState → no jank
   Future<void> _loadCachedDataFirst() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -269,7 +275,6 @@ class _DashboardPageState extends State<DashboardPage>
     List<Map<String, dynamic>> emergency  = [];
     AboutOverview?             ov;
 
-    // Notices
     final cachedNotices = prefs.getString(_kCacheNotices);
     if (cachedNotices != null) {
       try {
@@ -278,7 +283,6 @@ class _DashboardPageState extends State<DashboardPage>
       } catch (_) {}
     }
 
-    // Events
     final cachedEvents = prefs.getString(_kCacheEvents);
     if (cachedEvents != null) {
       try {
@@ -290,11 +294,9 @@ class _DashboardPageState extends State<DashboardPage>
       } catch (_) {}
     }
 
-    // Blood stats
     total = prefs.getInt(_kCacheBloodTotal) ?? 0;
     ready = prefs.getInt(_kCacheBloodReady) ?? 0;
 
-    // Emergency
     final cachedEmergency = prefs.getString(_kCacheEmergency);
     if (cachedEmergency != null) {
       try {
@@ -303,7 +305,6 @@ class _DashboardPageState extends State<DashboardPage>
       } catch (_) {}
     }
 
-    // Overview
     final cachedOverview = prefs.getString(_kCacheOverview);
     if (cachedOverview != null) {
       try {
@@ -311,7 +312,6 @@ class _DashboardPageState extends State<DashboardPage>
       } catch (_) {}
     }
 
-    // FIX: ONE single setState for all cached data → no multiple rebuilds
     if (mounted) {
       setState(() {
         _recentNotices     = notices;
@@ -322,7 +322,6 @@ class _DashboardPageState extends State<DashboardPage>
         _emergencyRequests = emergency;
         overview           = ov;
 
-        // Mark sections as "not loading" only if we have cached data
         if (notices.isNotEmpty)  _isLoadingNotices    = false;
         if (upcoming.isNotEmpty || past.isNotEmpty) _isLoadingEvents = false;
         if (total > 0)           _isLoadingBloodStats = false;
@@ -333,11 +332,9 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   // ─── Main Data Loader ─────────────────────────────────────────────────────
-  // FIX: showFadeAnimation = false during background refresh → no jump
   Future<void> _loadDashboardData({bool showFadeAnimation = true}) async {
     if (!_isOnline) return;
 
-    // Priority 1: Load critical above-fold data first (banners, notices, events)
     await Future.wait([
       _loadBanners(),
       _loadRecentNotices(),
@@ -346,7 +343,6 @@ class _DashboardPageState extends State<DashboardPage>
       _loadBloodStats(),
     ]);
 
-    // Priority 2: Load below-fold data after
     await Future.wait([
       _loadAboutData(),
       _loadGallery(),
@@ -354,15 +350,12 @@ class _DashboardPageState extends State<DashboardPage>
       _loadMembers(),
     ]);
 
-    // Only animate fade on first load, not on pull-to-refresh or background reload
     if (mounted && showFadeAnimation) {
       _fadeController.forward(from: 0);
     }
   }
 
   // ─── Individual Loaders ───────────────────────────────────────────────────
-  // FIX: Removed per-loader setState for isLoading start — reduces rebuilds
-
   Future<void> _loadEmergencyRequests() async {
     try {
       final data = await _supabase
@@ -568,34 +561,38 @@ class _DashboardPageState extends State<DashboardPage>
         ? 'advisor_${person.id}'
         : 'previous_${person.id}';
 
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PersonDetailsPage(
-          category:           categoryName,
-          heroTag:            heroTag,
-          name:               person.fullName ?? 'Member',
-          role:               person.committeePosition ??
+          category: categoryName,
+          heroTag: heroTag,
+          name: person.fullName ?? 'Member',
+          role: person.committeePosition ??
               person.previousPosition ??
               person.designation ?? 'Member',
-          imageUrl:           imageUrl,
-          message:            person.presentCommitteeNote ??
+          imageUrl: imageUrl,
+          message: person.presentCommitteeNote ??
               person.advisorNote ?? person.previousCommitteeNote,
-          bio:                person.shortBio,
-          presentAddress:     person.presentAddress,
-          bloodGroup:         person.bloodGroup,
-          locationDms:        person.locationDms,
-          schoolName:         person.schoolName,
-          schoolGroup:        person.schoolGroup,
-          schoolPassingYear:  person.schoolPassingYear,
-          collegeName:        person.collegeName,
-          collegeGroup:       person.collegeGroup,
+          bio: person.shortBio,
+          presentAddress: person.presentAddress,
+          bloodGroup: person.bloodGroup,
+          locationDms: person.locationDms,
+          schoolName: person.schoolName,
+          schoolGroup: person.schoolGroup,
+          schoolPassingYear: person.schoolPassingYear,
+          collegeName: person.collegeName,
+          collegeGroup: person.collegeGroup,
           collegePassingYear: person.collegePassingYear,
-          universityName:     person.universityName,
-          department:         person.department,
-          currentYear:        person.currentYear,
-          currentSemester:    person.currentSemester,
-          themeColor:         color,
+          universityName: person.universityName,
+          department: person.department,
+          currentYear: person.currentYear,
+          currentSemester: person.currentSemester,
+          themeColor: color,
+          visibility: person.visibility ?? 'public',
+          isOwner: currentUserId == person.id,
         ),
       ),
     );
@@ -623,7 +620,6 @@ class _DashboardPageState extends State<DashboardPage>
       );
       return;
     }
-    // FIX: no fade animation on pull-to-refresh → no scroll-to-top jump
     await _loadDashboardData(showFadeAnimation: false);
   }
 
@@ -648,6 +644,11 @@ class _DashboardPageState extends State<DashboardPage>
       value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: bgColor,
+
+        // ── AI Floating Button ─────────────────────────────────────────────
+        floatingActionButton: _buildAiFloatingButton(isDark),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+
         body: SafeArea(
           child: Stack(
             children: [
@@ -655,7 +656,7 @@ class _DashboardPageState extends State<DashboardPage>
 
               Column(
                 children: [
-                  // ── Offline Banner ───────────────────────────────────────
+                  // ── Offline Banner ─────────────────────────────────────
                   OfflineBannerWidget(
                     controller: _offlineBannerController,
                     onRetry:    _loadDashboardData,
@@ -663,25 +664,21 @@ class _DashboardPageState extends State<DashboardPage>
 
                   Expanded(
                     child: RefreshIndicator(
-                      // FIX: use _onRefresh so no fade jump on pull-to-refresh
                       onRefresh:       _onRefresh,
                       color:           accentCol,
                       backgroundColor: isDark
                           ? const Color(0xFF203A43)
                           : Colors.white,
                       child: CustomScrollView(
-                        // FIX: keep scroll position stable during data updates
                         physics: const AlwaysScrollableScrollPhysics(
                           parent: BouncingScrollPhysics(),
                         ),
                         slivers: [
                           SliverToBoxAdapter(
                             child: FadeTransition(
-                              // FIX: FadeTransition wraps only once; no re-fade on refresh
                               opacity: _fadeController,
                               child: _initialLoadDone
                                   ? _buildContent(isDark, accentCol)
-                              // Show a simple shimmer/placeholder before cache loads
                                   : const SizedBox.shrink(),
                             ),
                           ),
@@ -698,19 +695,92 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  // FIX: Extracted to separate method — cleaner and avoids accidental re-renders
+  // ── AI Floating Button ─────────────────────────────────────────────────────
+  Widget _buildAiFloatingButton(bool isDark) {
+    return AnimatedBuilder(
+      animation: _aiGlowController,
+      builder: (context, child) {
+        final glowOpacity =
+            0.3 + (_aiGlowController.value * 0.4); // 0.3 → 0.7
+
+        return GestureDetector(
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            AiChatPopup.show(context);
+          },
+          child: Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF00E5FF), Color(0xFF0091EA)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                // Inner glow
+                BoxShadow(
+                  color: SC.cyan.withValues(alpha: glowOpacity),
+                  blurRadius: 16,
+                  spreadRadius: 2,
+                ),
+                // Outer soft shadow
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // Icon — custom image থাকলে নিচের Image.asset ব্যবহার করো
+                // Image.asset(
+                //   'assets/images/ai_icon.png',
+                //   width: 28,
+                //   height: 28,
+                //   color: Colors.white,
+                // ),
+                // Default icon (image না থাকলে এটা দেখাবে)
+                const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
+
+                // Pulse ring
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ─── Content ──────────────────────────────────────────────────────────────
   Widget _buildContent(bool isDark, Color accentCol) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Banner ──────────────────────────────────────────────────────────
         if (!_isLoadingBanners && _banners.isNotEmpty)
           BannerSection(
             isLoading: false,
             banners:   _banners,
           ),
 
-        // ── Notices ─────────────────────────────────────────────────────────
         if (_recentNotices.isNotEmpty)
           NoticeSection(
             isLoading:   false,
@@ -721,7 +791,6 @@ class _DashboardPageState extends State<DashboardPage>
                 MaterialPageRoute(builder: (_) => const NoticePage())),
           ),
 
-        // ── Emergency Requests ───────────────────────────────────────────────
         if (_emergencyRequests.isNotEmpty)
           EmergencyRequestsBannerWidget(
             emergencyRequests: _emergencyRequests,
@@ -729,7 +798,6 @@ class _DashboardPageState extends State<DashboardPage>
             isDark:            isDark,
           ),
 
-        // ── Blood Dashboard ──────────────────────────────────────────────────
         if (_totalDonors > 0)
           BloodDashboardSectionWidget(
             isDark:      isDark,
@@ -738,7 +806,6 @@ class _DashboardPageState extends State<DashboardPage>
             readyDonors: _readyDonors,
           ),
 
-        // ── Upcoming Events ──────────────────────────────────────────────────
         if (_upcomingEvents.isNotEmpty)
           EventsSection(
             title:      SC.tr('upcomingEvents'),
@@ -750,7 +817,6 @@ class _DashboardPageState extends State<DashboardPage>
             onEventTap: _navigateToEventDetails,
           ),
 
-        // ── Past Events ──────────────────────────────────────────────────────
         if (_pastEvents.isNotEmpty)
           EventsSection(
             title:      SC.tr('pastEvents'),
@@ -762,14 +828,12 @@ class _DashboardPageState extends State<DashboardPage>
             onEventTap: _navigateToEventDetails,
           ),
 
-        // ── About Summary ────────────────────────────────────────────────────
         if (!_isLoadingAboutData && overview != null)
           AboutSummarySectionWidget(
             isDark:   isDark,
             overview: overview,
           ),
 
-        // ── Members ──────────────────────────────────────────────────────────
         if (!_isLoadingMembers) ...[
           if (_leaders.isNotEmpty)
             PersonSection(
@@ -800,7 +864,6 @@ class _DashboardPageState extends State<DashboardPage>
             ),
         ],
 
-        // ── Gallery ──────────────────────────────────────────────────────────
         if (!_isLoadingGallery && _recentImages.isNotEmpty)
           GalleryPreviewSection(
             isLoading: false,
@@ -809,7 +872,6 @@ class _DashboardPageState extends State<DashboardPage>
                 MaterialPageRoute(builder: (_) => const GalleryPage())),
           ),
 
-        // ── Videos ───────────────────────────────────────────────────────────
         if (!_isLoadingVideos && _recentVideos.isNotEmpty)
           VideoPreviewSection(
             isLoading:  false,
@@ -821,15 +883,12 @@ class _DashboardPageState extends State<DashboardPage>
           ),
 
         const SizedBox(height: 5),
-
-        // ── Complaint Card ───────────────────────────────────────────────────
         const ComplaintDashboardCard(),
-
         const SizedBox(height: 0),
 
-        // ── Footer ───────────────────────────────────────────────────────────
         FooterSection(contactInfo: _contactInfo),
-        const SizedBox(height: 10),
+        // Extra padding so content not hidden behind FAB
+        const SizedBox(height: 80),
       ],
     );
   }

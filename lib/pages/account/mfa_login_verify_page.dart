@@ -2,8 +2,9 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'settings_constants.dart';
+import '../SettingsPage/settings_constants.dart';
 import '../../services/session_service.dart';
+import '../../services/auth_guard_service.dart'; // ✅ NEW
 
 class MFALoginVerifyPage extends StatefulWidget {
   final String email;
@@ -49,14 +50,12 @@ class _MFALoginVerifyPageState extends State<MFALoginVerifyPage>
     super.dispose();
   }
 
-  // আগে sign in করো যাতে MFA challenge দেওয়া যায়
   Future<void> _signInAndAwaitMfa() async {
     try {
       await _supabase.auth.signInWithPassword(
         email: widget.email,
         password: widget.password,
       );
-      // এখন session আছে কিন্তু MFA pending — ভেরিফাই না হওয়া পর্যন্ত কিছু access নেই
     } catch (e) {
       if (mounted) {
         SC.toast(context, 'Login error: ${e.toString()}', SC.red);
@@ -90,10 +89,14 @@ class _MFALoginVerifyPageState extends State<MFALoginVerifyPage>
         code: _otp,
       );
 
-      // MFA সফল — session save করো
+      // ✅ Session save করো
       await SessionService.saveSession();
 
       if (!mounted) return;
+
+      // ✅ AuthGuard চালু করো — admin block/delete হলে auto logout হবে
+      AuthGuardService.init(context);
+
       Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
     } on AuthException catch (_) {
       if (mounted) {
@@ -123,21 +126,25 @@ class _MFALoginVerifyPageState extends State<MFALoginVerifyPage>
         backgroundColor: const Color(0xFF070B12),
         resizeToAvoidBottomInset: true,
         body: Stack(children: [
-          // Background gradient
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Color(0xFF0B1220), Color(0xFF070B12), Color(0xFF0A0F1A)],
+                colors: [
+                  Color(0xFF0B1220),
+                  Color(0xFF070B12),
+                  Color(0xFF0A0F1A)
+                ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
             ),
           ),
-          // Orbs
           Positioned(
-            top: -80, right: -50,
+            top: -80,
+            right: -50,
             child: Container(
-              width: 260, height: 260,
+              width: 260,
+              height: 260,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(colors: [
@@ -147,12 +154,10 @@ class _MFALoginVerifyPageState extends State<MFALoginVerifyPage>
               ),
             ),
           ),
-
           SafeArea(
             child: FadeTransition(
               opacity: _fadeCtrl,
               child: Column(children: [
-                // Back button
                 Padding(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 16, vertical: 12),
@@ -162,36 +167,40 @@ class _MFALoginVerifyPageState extends State<MFALoginVerifyPage>
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(12),
                         child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                          filter:
+                          ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                           child: Container(
-                            width: 40, height: 40,
+                            width: 40,
+                            height: 40,
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.06),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.1)),
+                                  color:
+                                  Colors.white.withValues(alpha: 0.1)),
                             ),
-                            child: const Icon(Icons.arrow_back_ios_new_rounded,
-                                color: Colors.white70, size: 15),
+                            child: const Icon(
+                                Icons.arrow_back_ios_new_rounded,
+                                color: Colors.white70,
+                                size: 15),
                           ),
                         ),
                       ),
                     ),
                   ]),
                 ),
-
                 Expanded(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
                     child: Column(children: [
-                      // Icon
                       Container(
                         padding: const EdgeInsets.all(22),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: SC.green.withValues(alpha: 0.1),
                           border: Border.all(
-                              color: SC.green.withValues(alpha: 0.3), width: 1.5),
+                              color: SC.green.withValues(alpha: 0.3),
+                              width: 1.5),
                         ),
                         child: const Icon(Icons.security_rounded,
                             color: SC.green, size: 42),
@@ -211,33 +220,35 @@ class _MFALoginVerifyPageState extends State<MFALoginVerifyPage>
                               fontSize: 13,
                               height: 1.5)),
                       const SizedBox(height: 36),
-
-                      // Code input
                       ClipRRect(
                         borderRadius: BorderRadius.circular(24),
                         child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                          filter:
+                          ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                           child: Container(
                             padding: const EdgeInsets.all(24),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(24),
                               border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.08)),
+                                  color: Colors.white
+                                      .withValues(alpha: 0.08)),
                             ),
                             child: Column(children: [
-                              LayoutBuilder(builder: (ctx, constraints) {
-                                final w = (constraints.maxWidth - 5 * 8) / 6;
-                                return Row(
-                                  children: List.generate(
-                                      6,
-                                          (i) => Row(children: [
-                                        _otpBox(i, w),
-                                        if (i < 5)
-                                          const SizedBox(width: 8),
-                                      ])),
-                                );
-                              }),
+                              LayoutBuilder(
+                                  builder: (ctx, constraints) {
+                                    final w =
+                                        (constraints.maxWidth - 5 * 8) / 6;
+                                    return Row(
+                                      children: List.generate(
+                                          6,
+                                              (i) => Row(children: [
+                                            _otpBox(i, w),
+                                            if (i < 5)
+                                              const SizedBox(width: 8),
+                                          ])),
+                                    );
+                                  }),
                               const SizedBox(height: 24),
                               SizedBox(
                                 width: double.infinity,
@@ -245,14 +256,17 @@ class _MFALoginVerifyPageState extends State<MFALoginVerifyPage>
                                 child: _isVerifying
                                     ? Container(
                                   decoration: BoxDecoration(
-                                    color: SC.green.withValues(alpha: 0.5),
+                                    color: SC.green
+                                        .withValues(alpha: 0.5),
                                     borderRadius:
                                     BorderRadius.circular(16),
                                   ),
                                   child: const Center(
                                     child: SizedBox(
-                                      width: 22, height: 22,
-                                      child: CircularProgressIndicator(
+                                      width: 22,
+                                      height: 22,
+                                      child:
+                                      CircularProgressIndicator(
                                           color: Colors.white,
                                           strokeWidth: 2.5),
                                     ),
@@ -266,12 +280,15 @@ class _MFALoginVerifyPageState extends State<MFALoginVerifyPage>
                                     elevation: 0,
                                     shape: RoundedRectangleBorder(
                                         borderRadius:
-                                        BorderRadius.circular(16)),
+                                        BorderRadius.circular(
+                                            16)),
                                   ),
-                                  child: Text(SC.tr('mfa_verify_enable'),
+                                  child: Text(
+                                      SC.tr('mfa_verify_enable'),
                                       style: const TextStyle(
                                           fontSize: 15,
-                                          fontWeight: FontWeight.w800)),
+                                          fontWeight:
+                                          FontWeight.w800)),
                                 ),
                               ),
                             ]),
@@ -310,8 +327,8 @@ class _MFALoginVerifyPageState extends State<MFALoginVerifyPage>
         fillColor: Colors.white.withValues(alpha: 0.05),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide:
-          BorderSide(color: Colors.white.withValues(alpha: 0.12), width: 1),
+          borderSide: BorderSide(
+              color: Colors.white.withValues(alpha: 0.12), width: 1),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -327,7 +344,8 @@ class _MFALoginVerifyPageState extends State<MFALoginVerifyPage>
         }
         if (_otp.length == 6) {
           FocusScope.of(context).unfocus();
-          Future.delayed(const Duration(milliseconds: 200), _verifyMfa);
+          Future.delayed(
+              const Duration(milliseconds: 200), _verifyMfa);
         }
       },
     ),

@@ -7,26 +7,22 @@ class AppearanceSettingsPage extends StatefulWidget {
   const AppearanceSettingsPage({super.key});
 
   @override
-  State<AppearanceSettingsPage> createState() =>
-      _AppearanceSettingsPageState();
+  State<AppearanceSettingsPage> createState() => _AppearanceSettingsPageState();
 }
 
 class _AppearanceSettingsPageState extends State<AppearanceSettingsPage>
     with SingleTickerProviderStateMixin {
-  String _themeMode   = 'dark';
-  double _fontSize    = 14.0;
-  bool   _compactMode = false;
-
+  String _themeMode = 'dark';
   late AnimationController _fadeCtrl;
 
   @override
   void initState() {
     super.initState();
     _fadeCtrl = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 600),
-        value: 0)
-      ..forward();
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+      value: 0,
+    )..forward();
     _load();
   }
 
@@ -40,485 +36,392 @@ class _AppearanceSettingsPageState extends State<AppearanceSettingsPage>
     final p = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() {
-      _themeMode   = p.getString('theme_mode') ?? 'dark';
-      _fontSize    = p.getDouble('font_size')  ?? 14.0;
-      _compactMode = p.getBool('compact_mode') ?? false;
+      _themeMode = p.getString('theme_mode') ?? 'dark';
     });
   }
 
-  Future<void> _savePref(String key, dynamic val) async {
+  Future<void> _saveTheme(String val) async {
     final p = await SharedPreferences.getInstance();
-    if (val is String) await p.setString(key, val);
-    if (val is double) await p.setDouble(key, val);
-    if (val is bool)   await p.setBool(key, val);
+    await p.setString('theme_mode', val);
   }
-
-  static const _themeOptions = [
-    _ThemeOpt('dark',   Icons.dark_mode_rounded,    SC.indigo, 'ডার্ক মোড',  'কম আলোতে চোখের আরাম'),
-    _ThemeOpt('light',  Icons.light_mode_rounded,   SC.amber,  'লাইট মোড',  'উজ্জ্বল পরিবেশের জন্য'),
-
-  ];
 
   @override
   Widget build(BuildContext context) {
-    // ValueListenableBuilder — theme change হলে এই page ও সাথে সাথে rebuild হবে
     return ValueListenableBuilder<String>(
       valueListenable: SC.themeModeNotifier,
-      builder: (context, themeVal, _) {
-        final isDark = SC.isDark;
+      builder: (context, _, __) => ValueListenableBuilder<String>(
+        valueListenable: SC.languageNotifier,
+        builder: (context, __, ___) => _buildPage(),
+      ),
+    );
+  }
 
-        // ── Dynamic colors based on theme ──────────────────────────────
-        final bgColor       = isDark ? SC.bgStart           : const Color(0xFFF0F4FF);
-        final textColor     = isDark ? Colors.white         : const Color(0xFF1A2332);
-        final subTextColor  = isDark ? Colors.white         : const Color(0xFF1A2332);
-        final cardColor     = isDark ? SC.cardBg            : Colors.white;
-        final borderColor   = isDark
-            ? Colors.white.withValues(alpha: 0.07)
-            : Colors.black.withValues(alpha: 0.08);
-        final infoCardColor = isDark
-            ? SC.indigo.withValues(alpha: 0.07)
-            : SC.indigo.withValues(alpha: 0.06);
+  Widget _buildPage() {
+    final isDark       = SC.isDark;
+    final textColor    = isDark ? Colors.white : const Color(0xFF1A2332);
+    final subTextColor = isDark
+        ? Colors.white.withValues(alpha: 0.55)
+        : const Color(0xFF4A5568);
+    final cardColor    = isDark ? SC.cardBg : Colors.white;
+    final borderColor  = isDark
+        ? Colors.white.withValues(alpha: 0.07)
+        : Colors.black.withValues(alpha: 0.08);
 
-        return AnnotatedRegion<SystemUiOverlayStyle>(
-          value: isDark
-              ? SystemUiOverlayStyle.light
-              : SystemUiOverlayStyle.dark,
-          child: Scaffold(
-            extendBodyBehindAppBar: true,
-            backgroundColor: bgColor,
-            appBar: AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              leading: _backButton(isDark, textColor),
-              title: Text(
-                'অ্যাপিয়ারেন্স',
-                style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18),
-              ),
-              centerTitle: true,
-            ),
-            body: Stack(children: [
-              // Background gradient
-              Container(
-                decoration: BoxDecoration(
-                    gradient: SC.currentGradient),
-              ),
-              Positioned(
-                  top: -60,
-                  right: -60,
-                  child: SC.blob(
-                      240, SC.indigo.withValues(alpha: 0.05))),
-              FadeTransition(
-                opacity: _fadeCtrl,
-                child: ListView(
-                  padding: EdgeInsets.fromLTRB(
-                      18,
-                      MediaQuery.of(context).padding.top + 90,
-                      18,
-                      40),
-                  children: [
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        extendBodyBehindAppBar: true,
+        body: Stack(children: [
+          // ── Background ────────────────────────────────────────
+          Container(decoration: BoxDecoration(gradient: SC.currentGradient)),
+          Positioned(
+            top: -60, right: -60,
+            child: SC.blob(240, SC.indigo.withValues(alpha: isDark ? 0.06 : 0.04)),
+          ),
+          Positioned(
+            bottom: 150, left: -80,
+            child: SC.blob(200, SC.cyan.withValues(alpha: isDark ? 0.04 : 0.03)),
+          ),
 
-                    // ── Theme Mode ──────────────────────────────────────
-                    _sectionHeader('থিম', Icons.palette_rounded,
-                        SC.indigo, textColor),
-                    _themedCard(
-                      isDark: isDark,
-                      cardColor: cardColor,
-                      borderColor: borderColor,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(children: [
-                          for (int i = 0;
-                          i < _themeOptions.length;
-                          i++) ...[
-                            if (i > 0) const SizedBox(width: 10),
-                            Expanded(
-                                child: _themeCard(
-                                    _themeOptions[i], isDark)),
-                          ],
-                        ]),
+          SafeArea(
+            top: false,
+            child: Column(children: [
+              _buildAppBar(textColor, isDark),
+              Expanded(
+                child: FadeTransition(
+                  opacity: _fadeCtrl,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(18, 8, 18, 48),
+                    children: [
+
+                      // ── Section Header ──────────────────────────
+                      _sectionLabel(
+                        SC.tr('theme_section'),
+                        Icons.palette_rounded,
+                        SC.indigo,
+                        textColor,
                       ),
-                    ),
+                      const SizedBox(height: 12),
 
-                    const SizedBox(height: 22),
-
-                    // ── Font Size ───────────────────────────────────────
-                    _sectionHeader('ফন্ট সাইজ',
-                        Icons.text_fields_rounded, SC.cyan, textColor),
-                    _themedCard(
-                      isDark: isDark,
-                      cardColor: cardColor,
-                      borderColor: borderColor,
-                      child: Padding(
-                        padding: const EdgeInsets.all(18),
-                        child: Column(
-                          crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('টেক্সট সাইজ',
-                                    style: TextStyle(
-                                        color: textColor,
-                                        fontSize: 14,
-                                        fontWeight:
-                                        FontWeight.w600)),
-                                Container(
-                                  padding:
-                                  const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: SC.cyan
-                                        .withValues(alpha: 0.12),
-                                    borderRadius:
-                                    BorderRadius.circular(8),
-                                    border: Border.all(
-                                        color: SC.cyan
-                                            .withValues(alpha: 0.3)),
-                                  ),
-                                  child: Text(
-                                      '${_fontSize.toInt()}px',
-                                      style: const TextStyle(
-                                          color: SC.cyan,
-                                          fontSize: 12,
-                                          fontWeight:
-                                          FontWeight.w700)),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            // Preview box
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.white
-                                    .withValues(alpha: 0.03)
-                                    : Colors.black
-                                    .withValues(alpha: 0.03),
-                                borderRadius:
-                                BorderRadius.circular(12),
-                                border: Border.all(
-                                    color: isDark
-                                        ? Colors.white
-                                        .withValues(alpha: 0.07)
-                                        : Colors.black
-                                        .withValues(
-                                        alpha: 0.08)),
-                              ),
-                              child: Text(
-                                'CSS - Computer Science Society',
-                                style: TextStyle(
-                                    color: textColor
-                                        .withValues(alpha: 0.85),
-                                    fontSize: _fontSize),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            SliderTheme(
-                              data: SliderTheme.of(context).copyWith(
-                                activeTrackColor: SC.cyan,
-                                inactiveTrackColor:
-                                SC.cyan.withValues(alpha: 0.15),
-                                thumbColor: SC.cyan,
-                                overlayColor:
-                                SC.cyan.withValues(alpha: 0.15),
-                                trackHeight: 4,
-                              ),
-                              child: Slider(
-                                value: _fontSize,
-                                min: 12,
-                                max: 20,
-                                divisions: 4,
-                                onChanged: (v) {
-                                  setState(() => _fontSize = v);
-                                  _savePref('font_size', v);
-                                },
-                              ),
-                            ),
-                            Row(
-                              mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
-                              children: [
-                                for (final size in [12, 14, 16, 18, 20])
-                                  Text(
-                                    '$size',
-                                    style: TextStyle(
-                                      color: _fontSize ==
-                                          size.toDouble()
-                                          ? SC.cyan
-                                          : textColor.withValues(
-                                          alpha: 0.3),
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 22),
-
-                    // ── Other preferences ───────────────────────────────
-                    _sectionHeader('অন্যান্য', Icons.tune_rounded,
-                        SC.orange, textColor),
-                    _themedCard(
-                      isDark: isDark,
-                      cardColor: cardColor,
-                      borderColor: borderColor,
-                      child: _switchTile(
-                        icon: Icons.view_compact_rounded,
-                        color: SC.orange,
-                        title: 'কমপ্যাক্ট মোড',
-                        subtitle: 'কম জায়গায় বেশি কন্টেন্ট দেখুন',
-                        value: _compactMode,
+                      // ── Theme Cards ─────────────────────────────
+                      _buildThemeCard(
+                        isDark: isDark,
+                        cardColor: cardColor,
+                        borderColor: borderColor,
                         textColor: textColor,
-                        onChanged: (v) {
-                          setState(() => _compactMode = v);
-                          _savePref('compact_mode', v);
-                        },
+                        subTextColor: subTextColor,
                       ),
-                    ),
+                      const SizedBox(height: 24),
 
-                    const SizedBox(height: 16),
+                      // ── Info Note ───────────────────────────────
+                      _buildInfoNote(isDark, textColor),
+                    ],
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
 
-                    // ── Info note ───────────────────────────────────────
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: infoCardColor,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                            color: SC.indigo.withValues(alpha: 0.2)),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.info_outline_rounded,
-                              color: SC.indigo, size: 18),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'থিম পরিবর্তন তাৎক্ষণিকভাবে প্রযোজ্য হবে।',
-                              style: TextStyle(
-                                  color:
-                                  textColor.withValues(alpha: 0.55),
-                                  fontSize: 12,
-                                  height: 1.6),
-                            ),
-                          ),
-                        ],
+  // ── AppBar ─────────────────────────────────────────────────────────────────
+  Widget _buildAppBar(Color textColor, bool isDark) {
+    return Container(
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top + 10,
+        bottom: 12,
+      ),
+      child: Row(children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: ClipOval(
+            child: Container(
+              decoration: BoxDecoration(
+                color: (isDark ? Colors.white : Colors.black)
+                    .withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: (isDark ? Colors.white : Colors.black)
+                      .withValues(alpha: 0.12),
+                ),
+              ),
+              child: IconButton(
+                icon: Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 16, color: textColor),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            SC.tr('appearance_title'),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        const SizedBox(width: 56),
+      ]),
+    );
+  }
+
+  // ── Theme Card Container ───────────────────────────────────────────────────
+  Widget _buildThemeCard({
+    required bool isDark,
+    required Color cardColor,
+    required Color borderColor,
+    required Color textColor,
+    required Color subTextColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(children: [
+        // Dark Mode Option
+        Expanded(
+          child: _themeOption(
+            value: 'dark',
+            icon: Icons.dark_mode_rounded,
+            label: SC.tr('dark_mode_label'),
+            subtitle: SC.tr('dark_mode_sub'),
+            color: SC.indigo,
+            isDark: isDark,
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Light Mode Option
+        Expanded(
+          child: _themeOption(
+            value: 'light',
+            icon: Icons.light_mode_rounded,
+            label: SC.tr('light_mode_label'),
+            subtitle: SC.tr('light_mode_sub'),
+            color: SC.amber,
+            isDark: isDark,
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // ── Individual Theme Option ────────────────────────────────────────────────
+  Widget _themeOption({
+    required String value,
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required Color color,
+    required bool isDark,
+  }) {
+    final selected = _themeMode == value;
+
+    final unselectedText = isDark
+        ? Colors.white.withValues(alpha: 0.45)
+        : Colors.black.withValues(alpha: 0.35);
+    final unselectedBg = isDark
+        ? Colors.white.withValues(alpha: 0.03)
+        : Colors.black.withValues(alpha: 0.03);
+    final unselectedBorder = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.08);
+
+    return GestureDetector(
+      onTap: () {
+        if (_themeMode == value) return;
+        setState(() => _themeMode = value);
+        _saveTheme(value);
+        SC.themeModeNotifier.value = value;
+        SC.toast(context, SC.tr('theme_set_msg'), color);
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? color.withValues(alpha: isDark ? 0.13 : 0.09)
+              : unselectedBg,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected
+                ? color.withValues(alpha: 0.5)
+                : unselectedBorder,
+            width: selected ? 1.5 : 1.0,
+          ),
+          boxShadow: selected
+              ? [
+            BoxShadow(
+              color: color.withValues(alpha: 0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            )
+          ]
+              : [],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Icon container
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: selected
+                    ? color.withValues(alpha: 0.18)
+                    : (isDark
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : Colors.black.withValues(alpha: 0.04)),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected
+                      ? color.withValues(alpha: 0.35)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Icon(
+                icon,
+                color: selected ? color : unselectedText,
+                size: 28,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Label
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? color : unselectedText,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 5),
+
+            // Subtitle
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.3)
+                    : Colors.black.withValues(alpha: 0.28),
+                fontSize: 10,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Selected indicator
+            AnimatedOpacity(
+              opacity: selected ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 250),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                      color: color.withValues(alpha: 0.35)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle_rounded,
+                        color: color, size: 12),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Active',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
               ),
-            ]),
-          ),
-        );
-      },
-    );
-  }
-
-  // ── Back button (theme-aware) ──────────────────────────────────────────────
-  Widget _backButton(bool isDark, Color textColor) => Padding(
-    padding: const EdgeInsets.all(10),
-    child: ClipOval(
-      child: Container(
-        decoration: BoxDecoration(
-          color: (isDark ? Colors.white : Colors.black)
-              .withValues(alpha: 0.1),
-          shape: BoxShape.circle,
-          border: Border.all(
-              color: (isDark ? Colors.white : Colors.black)
-                  .withValues(alpha: 0.2)),
-        ),
-        child: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded,
-              size: 16),
-          onPressed: () => Navigator.pop(context),
-          color: textColor,
-        ),
-      ),
-    ),
-  );
-
-  // ── Section header (theme-aware) ───────────────────────────────────────────
-  Widget _sectionHeader(
-      String title, IconData icon, Color color, Color textColor) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 10, left: 4),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: color, size: 15),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            title.toUpperCase(),
-            style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.4),
-          ),
-        ]),
-      );
-
-  // ── Themed card wrapper ────────────────────────────────────────────────────
-  Widget _themedCard({
-    required bool isDark,
-    required Color cardColor,
-    required Color borderColor,
-    required Widget child,
-  }) =>
-      Container(
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: borderColor),
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black
-                    .withValues(alpha: isDark ? 0.3 : 0.07),
-                blurRadius: 20,
-                offset: const Offset(0, 6))
           ],
         ),
-        child: child,
-      );
-
-  // ── Theme option card ──────────────────────────────────────────────────────
-  Widget _themeCard(_ThemeOpt opt, bool isDark) {
-    final selected = _themeMode == opt.value;
-    final unselectedTextColor = isDark
-        ? Colors.white.withValues(alpha: 0.55)
-        : Colors.black.withValues(alpha: 0.4);
-    final unselectedSubColor = isDark
-        ? Colors.white.withValues(alpha: 0.3)
-        : Colors.black.withValues(alpha: 0.3);
-    final unselectedBgColor = isDark
-        ? Colors.white.withValues(alpha: 0.03)
-        : Colors.black.withValues(alpha: 0.03);
-    final unselectedBorderColor = isDark
-        ? Colors.white.withValues(alpha: 0.08)
-        : Colors.black.withValues(alpha: 0.1);
-
-    return GestureDetector(
-      onTap: () {
-        setState(() => _themeMode = opt.value);
-        _savePref('theme_mode', opt.value);
-        SC.themeModeNotifier.value = opt.value;
-        SC.toast(context, '${opt.label} সেট হয়েছে ✓', opt.color);
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        decoration: BoxDecoration(
-          color: selected
-              ? opt.color.withValues(alpha: 0.12)
-              : unselectedBgColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: selected
-                ? opt.color.withValues(alpha: 0.5)
-                : unselectedBorderColor,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Column(children: [
-          Icon(opt.icon,
-              color: selected ? opt.color : unselectedTextColor,
-              size: 26),
-          const SizedBox(height: 8),
-          Text(opt.label,
-              style: TextStyle(
-                  color: selected ? opt.color : unselectedTextColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
-          Text(opt.subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: unselectedSubColor,
-                  fontSize: 9,
-                  height: 1.4)),
-        ]),
       ),
     );
   }
 
-  // ── Switch tile (theme-aware) ──────────────────────────────────────────────
-  Widget _switchTile({
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required Color textColor,
-    required ValueChanged<bool> onChanged,
-  }) =>
-      Padding(
-        padding:
-        const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 14),
+  // ── Info Note ──────────────────────────────────────────────────────────────
+  Widget _buildInfoNote(bool isDark, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: SC.indigo.withValues(alpha: isDark ? 0.07 : 0.05),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: SC.indigo.withValues(alpha: isDark ? 0.2 : 0.15)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded,
+              color: SC.indigo, size: 18),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: TextStyle(
-                          color: textColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 3),
-                  Text(subtitle,
-                      style: TextStyle(
-                          color: textColor.withValues(alpha: 0.45),
-                          fontSize: 12)),
-                ]),
+            child: Text(
+              SC.tr('appearance_info'),
+              style: TextStyle(
+                color: textColor.withValues(alpha: 0.55),
+                fontSize: 12,
+                height: 1.6,
+              ),
+            ),
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: color,
-            activeTrackColor: color.withValues(alpha: 0.25),
-            inactiveThumbColor:
-            Colors.white.withValues(alpha: 0.3),
-            inactiveTrackColor:
-            Colors.white.withValues(alpha: 0.08),
-          ),
-        ]),
-      );
-}
+        ],
+      ),
+    );
+  }
 
-class _ThemeOpt {
-  final String value;
-  final IconData icon;
-  final Color color;
-  final String label;
-  final String subtitle;
-  const _ThemeOpt(
-      this.value, this.icon, this.color, this.label, this.subtitle);
+  // ── Section Label ──────────────────────────────────────────────────────────
+  Widget _sectionLabel(
+      String title, IconData icon, Color color, Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 2),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 15),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          title.toUpperCase(),
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.4,
+          ),
+        ),
+      ]),
+    );
+  }
 }

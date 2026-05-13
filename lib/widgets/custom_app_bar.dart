@@ -18,17 +18,17 @@ class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
 class _CustomAppBarState extends State<CustomAppBar>
     with SingleTickerProviderStateMixin {
 
-  // ── Typewriter ──
-  List<String> get _titles => [
-    SC.tr('cssTitle1'),
-    SC.tr('cssTitle2'),
-    SC.tr('cssTitle3'),
-  ];
+  // ── Intro: একবার English টাইপ হবে ──
+  static const String _introText = 'Conscious Student Society'; // cssTitle1 English
 
-  int _currentIndex = 0;
+  // ── Final: সবসময় এটা দেখাবে ──
+  static const String _finalText = 'সচেতন ছাত্র সমাজ'; // cssTitle1 Bangla
+
+  // ── State ──
   String _displayedText = '';
-  bool _isDeleting = false;
+  bool _sequenceDone = false; // true হলে _finalText স্থায়ীভাবে দেখাবে
   bool _cursorVisible = true;
+
   Timer? _typeTimer;
   Timer? _cursorTimer;
 
@@ -39,11 +39,8 @@ class _CustomAppBarState extends State<CustomAppBar>
   @override
   void initState() {
     super.initState();
-    _startTypewriter();
     _startCursorBlink();
-    SC.languageNotifier.addListener(_onLanguageChanged);
-
-    // Notification
+    _startIntroSequence();
     _loadUnreadCount();
     _subscribeRealtime();
   }
@@ -52,22 +49,8 @@ class _CustomAppBarState extends State<CustomAppBar>
   void dispose() {
     _typeTimer?.cancel();
     _cursorTimer?.cancel();
-    SC.languageNotifier.removeListener(_onLanguageChanged);
     _notifChannel?.unsubscribe();
     super.dispose();
-  }
-
-  // ── Typewriter methods ──
-  void _onLanguageChanged() {
-    _typeTimer?.cancel();
-    if (mounted) {
-      setState(() {
-        _displayedText = '';
-        _isDeleting = false;
-        _currentIndex = 0;
-      });
-    }
-    Future.delayed(const Duration(milliseconds: 300), _startTypewriter);
   }
 
   void _startCursorBlink() {
@@ -76,38 +59,46 @@ class _CustomAppBarState extends State<CustomAppBar>
     });
   }
 
-  void _startTypewriter() {
+  // Step 1: English type করো
+  void _startIntroSequence() {
     _typeTimer = Timer.periodic(const Duration(milliseconds: 90), (timer) {
       if (!mounted) { timer.cancel(); return; }
       setState(() {
-        final currentTitle = _titles[_currentIndex];
-        if (!_isDeleting) {
-          if (_displayedText.length < currentTitle.length) {
-            _displayedText =
-                currentTitle.substring(0, _displayedText.length + 1);
-          } else {
-            timer.cancel();
-            Future.delayed(const Duration(seconds: 2), () {
-              if (mounted) {
-                _isDeleting = true;
-                _startTypewriter();
-              }
-            });
-          }
+        if (_displayedText.length < _introText.length) {
+          _displayedText = _introText.substring(0, _displayedText.length + 1);
         } else {
-          if (_displayedText.isNotEmpty) {
-            _displayedText =
-                _displayedText.substring(0, _displayedText.length - 1);
-          } else {
-            _isDeleting = false;
-            _currentIndex = (_currentIndex + 1) % _titles.length;
-            timer.cancel();
-            Future.delayed(const Duration(milliseconds: 400), () {
-              if (mounted) _startTypewriter();
-            });
-          }
+          timer.cancel();
+          // 1.5s থেকে delete শুরু
+          Future.delayed(const Duration(milliseconds: 1500), _startDeleting);
         }
       });
+    });
+  }
+
+  // Step 2: Delete করো
+  void _startDeleting() {
+    _typeTimer = Timer.periodic(const Duration(milliseconds: 55), (timer) {
+      if (!mounted) { timer.cancel(); return; }
+      setState(() {
+        if (_displayedText.isNotEmpty) {
+          _displayedText = _displayedText.substring(0, _displayedText.length - 1);
+        } else {
+          timer.cancel();
+          // 300ms pause তারপর Bangla show করো
+          Future.delayed(const Duration(milliseconds: 300), _showFinal);
+        }
+      });
+    });
+  }
+
+  // Step 3: Bangla text permanently দেখাও, cursor বন্ধ
+  void _showFinal() {
+    if (!mounted) return;
+    _cursorTimer?.cancel();
+    setState(() {
+      _displayedText = _finalText;
+      _sequenceDone = true;
+      _cursorVisible = false;
     });
   }
 
@@ -123,8 +114,6 @@ class _CustomAppBarState extends State<CustomAppBar>
           .eq('user_id', userId)
           .eq('is_read', false);
 
-      debugPrint('🔔 Unread count: ${(response as List).length}');
-
       if (mounted) {
         setState(() => _unreadCount = (response as List).length);
       }
@@ -132,6 +121,7 @@ class _CustomAppBarState extends State<CustomAppBar>
       debugPrint('🔔 Count error: $e');
     }
   }
+
   void _subscribeRealtime() {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
@@ -168,10 +158,7 @@ class _CustomAppBarState extends State<CustomAppBar>
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: SC.themeModeNotifier,
-      builder: (context, _, __) => ValueListenableBuilder<String>(
-        valueListenable: SC.languageNotifier,
-        builder: (context, __, ___) => _buildAppBar(),
-      ),
+      builder: (context, _, __) => _buildAppBar(),
     );
   }
 
@@ -189,9 +176,7 @@ class _CustomAppBarState extends State<CustomAppBar>
     final gradientColors = isDark
         ? [Colors.white, Colors.cyanAccent]
         : [const Color(0xFF1A2332), SC.blue];
-    final badgeBorder = isDark
-        ? const Color(0xFF132D46)
-        : Colors.white;
+    final badgeBorder = isDark ? const Color(0xFF132D46) : Colors.white;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
@@ -201,7 +186,7 @@ class _CustomAppBarState extends State<CustomAppBar>
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
 
-        // ── Drawer (Left) button ──
+        // ── Drawer (Left) ──
         leading: Builder(
           builder: (context) => IconButton(
             icon: Container(
@@ -220,7 +205,7 @@ class _CustomAppBarState extends State<CustomAppBar>
           ),
         ),
 
-        // ── Typewriter title ──
+        // ── Title ──
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -242,20 +227,21 @@ class _CustomAppBarState extends State<CustomAppBar>
                 ),
               ),
             ),
-            // Blinking cursor
-            AnimatedOpacity(
-              opacity: _cursorVisible ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 100),
-              child: Container(
-                width: 2,
-                height: 18,
-                margin: const EdgeInsets.only(left: 2),
-                decoration: BoxDecoration(
-                  color: cursorColor,
-                  borderRadius: BorderRadius.circular(1),
+            // Cursor — sequence শেষ হলে সম্পূর্ণ hidden
+            if (!_sequenceDone)
+              AnimatedOpacity(
+                opacity: _cursorVisible ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 100),
+                child: Container(
+                  width: 2,
+                  height: 18,
+                  margin: const EdgeInsets.only(left: 2),
+                  decoration: BoxDecoration(
+                    color: cursorColor,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
                 ),
               ),
-            ),
           ],
         ),
 
@@ -288,7 +274,6 @@ class _CustomAppBarState extends State<CustomAppBar>
                         builder: (_) => const NotificationPage(),
                       ),
                     );
-                    // Page থেকে ফিরলে count refresh
                     _loadUnreadCount();
                   },
                 ),

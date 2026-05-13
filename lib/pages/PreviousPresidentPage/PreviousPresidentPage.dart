@@ -176,7 +176,8 @@ class _PreviousPresidentPageState extends State<PreviousPresidentPage>
             'short_bio, blood_group, location_dms, '
             'school_name, school_group, school_passing_year, '
             'college_name, college_group, college_passing_year, '
-            'university_name, department, current_year, current_semester',
+            'university_name, department, current_year, current_semester, '
+            'visibility', // ← যোগ করো
       )
           .eq('member_type', _memberType)
           .order('tenure_from', ascending: false);
@@ -234,31 +235,34 @@ class _PreviousPresidentPageState extends State<PreviousPresidentPage>
 
   void _openPersonDetails(PreviousPresident president) {
     final raw = _rawDataMap[president.id] ?? {};
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     HapticFeedback.lightImpact();
     Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => PersonDetailsPage(
-          category:           SC.tr('prevFormerCommittee'),
-          heroTag:            'president_${president.id}',
-          name:               president.fullName,
-          role:               president.previousPosition ?? SC.tr('prevFormerMember'),
-          imageUrl:           president.imagePath,
-          message:            president.note,
-          bio:                raw['short_bio']            as String?,
-          schoolName:         raw['school_name']          as String?,
-          schoolGroup:        raw['school_group']         as String?,
-          schoolPassingYear:  raw['school_passing_year']  as int?,
-          collegeName:        raw['college_name']         as String?,
-          collegeGroup:       raw['college_group']        as String?,
+          category: SC.tr('prevFormerCommittee'),
+          heroTag: 'president_${president.id}',
+          name: president.fullName,
+          role: president.previousPosition ?? SC.tr('prevFormerMember'),
+          imageUrl: president.imagePath,
+          message: president.note,
+          bio: raw['short_bio'] as String?,
+          schoolName: raw['school_name'] as String?,
+          schoolGroup: raw['school_group'] as String?,
+          schoolPassingYear: raw['school_passing_year'] as int?,
+          collegeName: raw['college_name'] as String?,
+          collegeGroup: raw['college_group'] as String?,
           collegePassingYear: raw['college_passing_year'] as int?,
-          universityName:     raw['university_name']      as String?,
-          department:         raw['department']           as String?,
-          currentYear:        raw['current_year']         as int?,
-          currentSemester:    raw['current_semester']     as int?,
-          bloodGroup:         raw['blood_group']          as String?,
-          locationDms:        raw['location_dms']         as String?,
-          themeColor:         _P.purple,
+          universityName: raw['university_name'] as String?,
+          department: raw['department'] as String?,
+          currentYear: raw['current_year'] as int?,
+          currentSemester: raw['current_semester'] as int?,
+          bloodGroup: raw['blood_group'] as String?,
+          locationDms: raw['location_dms'] as String?,
+          themeColor: _P.purple,
+          visibility: raw['visibility'] as String? ?? 'public', // ← যোগ
+          isOwner: currentUserId == president.id,               // ← যোগ
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) =>
             FadeTransition(

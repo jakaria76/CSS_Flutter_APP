@@ -36,36 +36,21 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
     super.dispose();
   }
 
-  // ─── Data ─────────────────────────────────────────────────────────────────
+  // ─── Timestamp parse ──────────────────────────────────────────────────────
 
-  /// Supabase timestamp string কে সঠিকভাবে local DateTime-এ convert করে
   DateTime _parseTimestamp(String? raw) {
     if (raw == null || raw.isEmpty) return DateTime.now();
-
-    // Supabase থেকে আসা format: "2025-01-15T10:30:00+00:00" বা "2025-01-15T10:30:00.000000"
-    // DateTime.parse() UTC marker ছাড়া local time ধরে, তাই explicitly handle করতে হবে
-
     final parsed = DateTime.tryParse(raw);
     if (parsed == null) return DateTime.now();
-
-    if (parsed.isUtc) {
-      // ইতোমধ্যে UTC — সরাসরি local-এ convert করো
-      return parsed.toLocal();
-    }
-
-    // UTC marker নেই — Supabase সবসময় UTC store করে,
-    // তাই forcefully UTC বানিয়ে তারপর local-এ নিয়ে আসো
+    if (parsed.isUtc) return parsed.toLocal();
     return DateTime.utc(
-      parsed.year,
-      parsed.month,
-      parsed.day,
-      parsed.hour,
-      parsed.minute,
-      parsed.second,
-      parsed.millisecond,
-      parsed.microsecond,
+      parsed.year, parsed.month, parsed.day,
+      parsed.hour, parsed.minute, parsed.second,
+      parsed.millisecond, parsed.microsecond,
     ).toLocal();
   }
+
+  // ─── Fetch sessions ───────────────────────────────────────────────────────
 
   Future<void> _fetchSessions() async {
     if (!mounted) return;
@@ -89,18 +74,17 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
         _sessions = (response as List).map((row) {
           final deviceName = (row['device_name'] ?? '').toString().trim();
           final deviceModel = (row['device_model'] ?? '').toString().trim();
-          final combined = [deviceName, deviceModel]
-              .where((s) => s.isNotEmpty)
-              .join(' ');
+          final combined =
+          [deviceName, deviceModel].where((s) => s.isNotEmpty).join(' ');
 
           return _Session(
             id: row['id'] as String,
             sessionKey: row['session_key'] as String? ?? '',
-            deviceName: combined.isEmpty ? SC.tr('unknown_device') : combined,
+            deviceName:
+            combined.isEmpty ? SC.tr('unknown_device') : combined,
             osVersion: (row['os_version'] as String?)?.isNotEmpty == true
                 ? row['os_version'] as String
                 : SC.tr('unknown_os'),
-            // ✅ FIX: সঠিক UTC → local conversion
             lastActive: _parseTimestamp(row['last_active'] as String?),
             isCurrent: row['session_key'] == currentKey,
           );
@@ -113,7 +97,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
     }
   }
 
-  // ─── Revoke single session ─────────────────────────────────────────────────
+  // ─── Revoke single session ────────────────────────────────────────────────
 
   Future<void> _confirmRevoke(_Session s) async {
     final confirmed = await _showConfirmDialog(
@@ -127,6 +111,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
   Future<void> _revokeSession(_Session s) async {
     setState(() => _revoking = true);
     try {
+      // ✅ DB থেকে delete করো — ঐ device এ AuthGuardService Realtime event পেয়ে auto logout করবে
       await _supabase.from('user_sessions').delete().eq('id', s.id);
 
       if (!mounted) return;
@@ -139,7 +124,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
     }
   }
 
-  // ─── Revoke all other sessions ─────────────────────────────────────────────
+  // ─── Revoke all other sessions ────────────────────────────────────────────
 
   Future<void> _confirmRevokeAll() async {
     final confirmed = await _showConfirmDialog(
@@ -155,10 +140,10 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
     try {
       final userId = _supabase.auth.currentUser?.id;
       final currentKey = SessionService.getCurrentSessionKey();
-
       if (userId == null) return;
 
       if (currentKey != null) {
+        // ✅ Current session বাদে সব delete — ঐ device গুলোতে auto logout হবে
         await _supabase
             .from('user_sessions')
             .delete()
@@ -181,7 +166,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
     }
   }
 
-  // ─── Confirm Dialog ────────────────────────────────────────────────────────
+  // ─── Confirm Dialog ───────────────────────────────────────────────────────
 
   Future<bool> _showConfirmDialog({
     required String title,
@@ -202,14 +187,17 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(title,
             style: TextStyle(
-                color: textColor, fontWeight: FontWeight.w700, fontSize: 16)),
+                color: textColor,
+                fontWeight: FontWeight.w700,
+                fontSize: 16)),
         content: Text(message,
             style: TextStyle(color: subColor, fontSize: 13, height: 1.6)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text(SC.tr('cancel'),
-                style: TextStyle(color: subColor, fontWeight: FontWeight.w600)),
+                style:
+                TextStyle(color: subColor, fontWeight: FontWeight.w600)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -223,7 +211,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
     return result ?? false;
   }
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
+  // ─── Helpers ──────────────────────────────────────────────────────────────
 
   IconData _platformIcon(String os) {
     final lower = os.toLowerCase();
@@ -234,11 +222,8 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
     return Icons.devices_rounded;
   }
 
-  /// ✅ FIX: এখন local time-এ সঠিক diff হিসাব হবে
   String _timeAgo(DateTime localDt) {
-    final now = DateTime.now(); // device local time
-    final diff = now.difference(localDt);
-
+    final diff = DateTime.now().difference(localDt);
     if (diff.inSeconds < 60) return SC.tr('just_now');
     if (diff.inMinutes < 60) {
       return SC.tr('min_ago').replaceAll('@min', diff.inMinutes.toString());
@@ -249,7 +234,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
     return SC.tr('day_ago').replaceAll('@day', diff.inDays.toString());
   }
 
-  // ─── Build ─────────────────────────────────────────────────────────────────
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -281,7 +266,6 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
           children: [
             Container(decoration: BoxDecoration(gradient: SC.currentGradient)),
             SC.blob(240, SC.blue.withValues(alpha: 0.05)),
-
             Column(
               children: [
                 _buildAppBar(textColor),
@@ -289,9 +273,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
                   child: _isLoading
                       ? Center(
                     child: CircularProgressIndicator(
-                      color: SC.cyan,
-                      strokeWidth: 2.5,
-                    ),
+                        color: SC.cyan, strokeWidth: 2.5),
                   )
                       : FadeTransition(
                     opacity: _fadeCtrl,
@@ -302,74 +284,25 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 18, vertical: 20),
                         children: [
-                          Text(
-                            SC.tr('active_sessions_count').replaceAll(
-                                '@count', _sessions.length.toString()),
-                            style: TextStyle(
-                                color: subTextColor, fontSize: 13),
-                          ),
+                          // ── Header info ──────────────────────────
+                          _buildHeaderInfo(subTextColor),
                           const SizedBox(height: 16),
 
+                          // ── Session cards ─────────────────────────
                           for (final s in _sessions) ...[
-                            _sessionCard(
-                              s,
-                              cardColor,
-                              textColor,
-                              subTextColor,
-                              borderColor,
-                            ),
+                            _sessionCard(s, cardColor, textColor,
+                                subTextColor, borderColor),
                             const SizedBox(height: 12),
                           ],
 
+                          // ── Empty state ───────────────────────────
                           if (_sessions.isEmpty)
-                            Center(
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 60),
-                                child: Column(
-                                  children: [
-                                    Icon(Icons.devices_rounded,
-                                        color: subTextColor, size: 48),
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      SC.tr('no_sessions'),
-                                      style: TextStyle(
-                                          color: subTextColor,
-                                          fontSize: 14),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                            _buildEmptyState(subTextColor),
 
                           const SizedBox(height: 8),
 
-                          Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: SC.blue.withValues(alpha: 0.07),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                  color: SC.blue.withValues(alpha: 0.2)),
-                            ),
-                            child: Row(
-                              crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                              children: [
-                                const Icon(Icons.info_outline_rounded,
-                                    color: SC.blue, size: 18),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    SC.tr('session_info_tip'),
-                                    style: TextStyle(
-                                        color: subTextColor,
-                                        fontSize: 12,
-                                        height: 1.6),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          // ── Info tip ──────────────────────────────
+                          _buildInfoTip(subTextColor),
 
                           const SizedBox(height: 24),
                         ],
@@ -385,7 +318,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
     );
   }
 
-  // ─── AppBar ────────────────────────────────────────────────────────────────
+  // ─── AppBar ───────────────────────────────────────────────────────────────
 
   Widget _buildAppBar(Color textColor) {
     final otherSessions = _sessions.where((s) => !s.isCurrent).toList();
@@ -395,7 +328,8 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
       child: Row(
         children: [
           IconButton(
-            icon: Icon(Icons.arrow_back_ios_new, color: textColor, size: 20),
+            icon:
+            Icon(Icons.arrow_back_ios_new, color: textColor, size: 20),
             onPressed: () => Navigator.pop(context),
           ),
           Expanded(
@@ -429,7 +363,102 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
     );
   }
 
-  // ─── Session Card ──────────────────────────────────────────────────────────
+  // ─── Header info ──────────────────────────────────────────────────────────
+
+  Widget _buildHeaderInfo(Color subTextColor) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            SC.tr('active_sessions_count')
+                .replaceAll('@count', _sessions.length.toString()),
+            style: TextStyle(color: subTextColor, fontSize: 13),
+          ),
+        ),
+        // ✅ Realtime badge — user কে জানাবে live sync চলছে
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: SC.cyan.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(20),
+            border:
+            Border.all(color: SC.cyan.withValues(alpha: 0.25), width: 0.8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: SC.cyan,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Live',
+                style: TextStyle(
+                  color: SC.cyan,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Empty state ──────────────────────────────────────────────────────────
+
+  Widget _buildEmptyState(Color subTextColor) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 60),
+        child: Column(
+          children: [
+            Icon(Icons.devices_rounded, color: subTextColor, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              SC.tr('no_sessions'),
+              style: TextStyle(color: subTextColor, fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Info tip ─────────────────────────────────────────────────────────────
+
+  Widget _buildInfoTip(Color subTextColor) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: SC.blue.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: SC.blue.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline_rounded, color: SC.blue, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              SC.tr('session_info_tip'),
+              style: TextStyle(
+                  color: subTextColor, fontSize: 12, height: 1.6),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Session Card ─────────────────────────────────────────────────────────
 
   Widget _sessionCard(
       _Session s,
@@ -441,7 +470,9 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: s.isCurrent ? SC.cyan.withValues(alpha: 0.06) : cardColor,
+        color: s.isCurrent
+            ? SC.cyan.withValues(alpha: 0.06)
+            : cardColor,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
             color: s.isCurrent
@@ -449,8 +480,8 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
                 : borderColor),
         boxShadow: [
           BoxShadow(
-            color:
-            Colors.black.withValues(alpha: SC.isDark ? 0.25 : 0.05),
+            color: Colors.black
+                .withValues(alpha: SC.isDark ? 0.25 : 0.05),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -458,11 +489,12 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
       ),
       child: Row(
         children: [
+          // ── Platform icon ──────────────────────────────────────────
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color:
-              (s.isCurrent ? SC.cyan : SC.blue).withValues(alpha: 0.12),
+              color: (s.isCurrent ? SC.cyan : SC.blue)
+                  .withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
@@ -473,6 +505,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
           ),
           const SizedBox(width: 14),
 
+          // ── Info ──────────────────────────────────────────────────
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -491,6 +524,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
                     ),
                     if (s.isCurrent) ...[
                       const SizedBox(width: 8),
+                      // ✅ "এই device" badge
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
@@ -511,7 +545,8 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
                 ),
                 const SizedBox(height: 4),
                 Text(s.osVersion,
-                    style: TextStyle(color: subTextColor, fontSize: 12)),
+                    style:
+                    TextStyle(color: subTextColor, fontSize: 12)),
                 const SizedBox(height: 2),
                 Text(
                   _timeAgo(s.lastActive),
@@ -523,6 +558,7 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
             ),
           ),
 
+          // ── Revoke button (other sessions only) ───────────────────
           if (!s.isCurrent)
             _revoking
                 ? const SizedBox(
@@ -531,12 +567,63 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage>
               child: CircularProgressIndicator(
                   color: SC.orange, strokeWidth: 2),
             )
-                : IconButton(
-              icon: const Icon(Icons.logout_rounded,
-                  color: SC.orange, size: 20),
-              onPressed: () => _confirmRevoke(s),
+                : _RevokeButton(
+              onTap: () => _confirmRevoke(s),
             ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Revoke Button Widget ─────────────────────────────────────────────────────
+
+class _RevokeButton extends StatefulWidget {
+  final VoidCallback onTap;
+  const _RevokeButton({required this.onTap});
+
+  @override
+  State<_RevokeButton> createState() => _RevokeButtonState();
+}
+
+class _RevokeButtonState extends State<_RevokeButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: _pressed
+              ? SC.orange.withOpacity(0.2)
+              : SC.orange.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: SC.orange.withOpacity(0.3), width: 0.8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.logout_rounded,
+                color: SC.orange, size: 14),
+            const SizedBox(width: 5),
+            Text(
+              SC.tr('revoke'),
+              style: const TextStyle(
+                color: SC.orange,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

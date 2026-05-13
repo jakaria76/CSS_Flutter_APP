@@ -127,7 +127,8 @@ class _AdvisorPageState extends State<AdvisorPage>
             'short_bio, blood_group, location_dms, '
             'school_name, school_group, school_passing_year, '
             'college_name, college_group, college_passing_year, '
-            'university_name, department, current_year, current_semester',
+            'university_name, department, current_year, current_semester, '
+            'visibility', // ← যোগ করো
       )
           .eq('member_type', _memberType)
           .order('full_name', ascending: true);
@@ -197,42 +198,44 @@ class _AdvisorPageState extends State<AdvisorPage>
   // ── Navigation ─────────────────────────────────────────────────
   void _openPersonDetails(Advisor advisor, {bool isChief = false}) {
     final raw = _rawDataMap[advisor.id] ?? {};
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     HapticFeedback.lightImpact();
     Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
             PersonDetailsPage(
-              category:           SC.tr('advisorCategory'),
-              heroTag:            'advisor_${advisor.id}',
-              name:               advisor.fullName,
-              role:               advisor.designation ??
+              category: SC.tr('advisorCategory'),
+              heroTag: 'advisor_${advisor.id}',
+              name: advisor.fullName,
+              role: advisor.designation ??
                   advisor.occupation ??
                   SC.tr('advisorOccupationDefault'),
-              imageUrl:           advisor.imagePath,
-              message:            advisor.note,
-              bio:                raw['short_bio']            as String?,
-              schoolName:         raw['school_name']          as String?,
-              schoolGroup:        raw['school_group']         as String?,
-              schoolPassingYear:  raw['school_passing_year']  as int?,
-              collegeName:        raw['college_name']         as String?,
-              collegeGroup:       raw['college_group']        as String?,
+              imageUrl: advisor.imagePath,
+              message: advisor.note,
+              bio: raw['short_bio'] as String?,
+              schoolName: raw['school_name'] as String?,
+              schoolGroup: raw['school_group'] as String?,
+              schoolPassingYear: raw['school_passing_year'] as int?,
+              collegeName: raw['college_name'] as String?,
+              collegeGroup: raw['college_group'] as String?,
               collegePassingYear: raw['college_passing_year'] as int?,
-              universityName:     raw['university_name']      as String?,
-              department:         raw['department']           as String?,
-              currentYear:        raw['current_year']         as int?,
-              currentSemester:    raw['current_semester']     as int?,
-              bloodGroup:         raw['blood_group']          as String?,
-              locationDms:        raw['location_dms']         as String?,
+              universityName: raw['university_name'] as String?,
+              department: raw['department'] as String?,
+              currentYear: raw['current_year'] as int?,
+              currentSemester: raw['current_semester'] as int?,
+              bloodGroup: raw['blood_group'] as String?,
+              locationDms: raw['location_dms'] as String?,
               themeColor: isChief ? const Color(0xFFFFD700) : SC.amber,
+              visibility: raw['visibility'] as String? ?? 'public', // ← যোগ
+              isOwner: currentUserId == advisor.id,                  // ← যোগ
             ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) =>
             FadeTransition(
               opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
               child: SlideTransition(
                 position: Tween<Offset>(
-                  begin: const Offset(0, 0.04),
-                  end: Offset.zero,
+                  begin: const Offset(0, 0.04), end: Offset.zero,
                 ).animate(CurvedAnimation(
                     parent: animation, curve: Curves.easeOutCubic)),
                 child: child,

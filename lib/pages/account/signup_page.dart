@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'otp_verify_page.dart'; // LoginPage থেকে same OTP page use করবো
+import 'otp_verify_page.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -11,32 +11,85 @@ class SignupPage extends StatefulWidget {
   State<SignupPage> createState() => _SignupPageState();
 }
 
-class _SignupPageState extends State<SignupPage> {
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+class _SignupPageState extends State<SignupPage>
+    with SingleTickerProviderStateMixin {
+  final _nameController     = TextEditingController();
+  final _emailController    = TextEditingController();
   final _passwordController = TextEditingController();
   final SupabaseClient supabase = Supabase.instance.client;
 
-  bool loading = false;
-  bool obscure = true;
+  bool _loading = false;
+  bool _obscure = true;
 
-  // ================= SIGNUP LOGIC =================
-  Future<void> signupWithEmail() async {
-    if (loading) return;
-    final name = _nameController.text.trim();
-    final email = _emailController.text.trim();
+  late AnimationController _animCtrl;
+  late Animation<double>    _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+    _fadeAnim =
+        CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
+    _animCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  // ── Blocked email check ────────────────────────────────────────────────────
+
+  Future<bool> _isEmailBlocked(String email) async {
+    try {
+      final result = await supabase.rpc(
+        'is_email_blocked',
+        params: {'check_email': email.toLowerCase().trim()},
+      );
+      return result == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ── Signup logic ───────────────────────────────────────────────────────────
+
+  Future<void> _signup() async {
+    if (_loading) return;
+
+    final name     = _nameController.text.trim();
+    final email    = _emailController.text.trim().toLowerCase();
     final password = _passwordController.text;
 
     if (name.isEmpty || email.isEmpty || password.length < 6) {
-      _showMessage('Please fill all fields (Min 6 chars password)');
+      _showError('Please fill all fields (min 6 character password)');
       return;
     }
 
-    try {
-      setState(() => loading = true);
-      HapticFeedback.heavyImpact();
+    setState(() => _loading = true);
+    HapticFeedback.heavyImpact();
 
-      // Step 1: Supabase-এ signup করো
+    try {
+      // ── 1. Blocked check ─────────────────────────────────────────────────
+      final blocked = await _isEmailBlocked(email);
+      if (blocked) {
+        _showBanner(
+          icon:    Icons.block_rounded,
+          color:   const Color(0xFFFF5722),
+          title:   'Registration Blocked',
+          message:
+          'You cannot create an account or login with this email address. '
+              'It has been permanently restricted.',
+        );
+        return;
+      }
+
+      // ── 2. Supabase signup ───────────────────────────────────────────────
       final res = await supabase.auth.signUp(
         email: email,
         password: password,
@@ -44,19 +97,19 @@ class _SignupPageState extends State<SignupPage> {
       );
 
       if (res.user == null) {
-        _showMessage('Signup failed. Try again.');
+        _showError('Signup failed. Please try again.');
         return;
       }
 
-      // Step 2: Profile তৈরি করো
+      // ── 3. Create profile ────────────────────────────────────────────────
       await _createProfile(res.user!.id, email, name);
 
-      // Step 3: Session থাকলেও sign out করো — OTP ছাড়া home দেবো না
+      // ── 4. Sign out — OTP verify ছাড়া access নেই ─────────────────────────
       await supabase.auth.signOut();
 
       if (!mounted) return;
 
-      // Step 4: OTP পাঠাও
+      // ── 5. Send OTP ──────────────────────────────────────────────────────
       await supabase.auth.signInWithOtp(
         email: email,
         shouldCreateUser: false,
@@ -64,60 +117,154 @@ class _SignupPageState extends State<SignupPage> {
 
       if (!mounted) return;
 
-      // Step 5: OTP verify page-এ পাঠাও (login flow-এর মতোই)
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => OtpVerifyPage(email: email)),
             (route) => false,
       );
     } on AuthException catch (e) {
-      _showMessage(e.message);
+      final msg = e.message.toLowerCase();
+      if (msg.contains('already registered') || msg.contains('already exists')) {
+        _showBanner(
+          icon:    Icons.person_rounded,
+          color:   const Color(0xFF4A90E2),
+          title:   'Already Registered',
+          message: 'An account already exists with this email. Please login instead.',
+        );
+      } else {
+        _showError(e.message);
+      }
     } catch (e) {
-      _showMessage('Signup failed. Try again.');
+      _showError('Signup failed. Please check your connection.');
     } finally {
-      if (mounted) setState(() => loading = false);
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _createProfile(String id, String email, String name) async {
+  Future<void> _createProfile(
+      String id, String email, String name) async {
     try {
       await supabase.from('profiles').upsert({
-        'id': id,
-        'full_name': name,
-        'email': email,
-        'role': 'member',
+        'id':                   id,
+        'full_name':            name,
+        'email':                email,
+        'role':                 'member',
         'donation_eligibility': 'Eligible',
-        'created_at': DateTime.now().toIso8601String(),
+        'created_at':           DateTime.now().toIso8601String(),
       });
     } catch (e) {
       debugPrint('Profile error: $e');
     }
   }
 
-  void _showMessage(String msg, {bool isError = true}) {
+  // ── Error / Banner UI ──────────────────────────────────────────────────────
+
+  void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
-        backgroundColor: isError
-            ? Colors.redAccent.withOpacity(0.9)
-            : Colors.greenAccent.withOpacity(0.9),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(15),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Row(children: [
+        const Icon(Icons.error_outline_rounded,
+            color: Colors.white, size: 18),
+        const SizedBox(width: 10),
+        Expanded(
+            child: Text(msg,
+                style: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w500))),
+      ]),
+      backgroundColor: Colors.redAccent,
+      behavior: SnackBarBehavior.floating,
+      shape:
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      margin: const EdgeInsets.all(16),
+      duration: const Duration(seconds: 4),
+    ));
+  }
+
+  void _showBanner({
+    required IconData icon,
+    required Color    color,
+    required String   title,
+    required String   message,
+  }) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding:
+        const EdgeInsets.symmetric(horizontal: 24),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color:
+                const Color(0xFF0F1E2E).withOpacity(0.97),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                    color: color.withOpacity(0.4), width: 1.2),
+              ),
+              child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: color.withOpacity(0.12),
+                        border: Border.all(
+                            color: color.withOpacity(0.3)),
+                      ),
+                      child: Icon(icon, color: color, size: 36),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(title,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 20)),
+                    const SizedBox(height: 12),
+                    Text(message,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.6),
+                            fontSize: 14,
+                            height: 1.6)),
+                    const SizedBox(height: 28),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(
+                              color:
+                              Colors.white.withOpacity(0.2)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius:
+                              BorderRadius.circular(14)),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 14),
+                        ),
+                        child: const Text('OK',
+                            style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14)),
+                      ),
+                    ),
+                  ]),
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
+  // ── Build ──────────────────────────────────────────────────────────────────
 
-  // ================= UI BUILD =================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -130,31 +277,40 @@ class _SignupPageState extends State<SignupPage> {
               color: Colors.white, size: 22),
           onPressed: () => Navigator.pop(context),
         ),
+        systemOverlayStyle: SystemUiOverlayStyle.light,
       ),
       body: Container(
         height: double.infinity,
         width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
+            colors: [
+              Color(0xFF0F2027),
+              Color(0xFF203A43),
+              Color(0xFF2C5364)
+            ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
         ),
-        child: Stack(
-          children: [
-            Positioned(
-                top: -50,
-                left: -50,
-                child: _blurOrb(200, Colors.cyanAccent.withOpacity(0.1))),
-            Positioned(
-                bottom: 100,
-                right: -30,
-                child: _blurOrb(150, Colors.purpleAccent.withOpacity(0.05))),
-            SafeArea(
+        child: Stack(children: [
+          Positioned(
+              top: -50,
+              left: -50,
+              child: _blurOrb(200, Colors.cyanAccent.withOpacity(0.1))),
+          Positioned(
+              bottom: 100,
+              right: -30,
+              child:
+              _blurOrb(150, Colors.purpleAccent.withOpacity(0.05))),
+
+          SafeArea(
+            child: FadeTransition(
+              opacity: _fadeAnim,
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 28),
+                padding:
+                const EdgeInsets.symmetric(horizontal: 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -164,41 +320,44 @@ class _SignupPageState extends State<SignupPage> {
                     const Text(
                       'Create\nAccount',
                       style: TextStyle(
-                        fontSize: 42,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        height: 1.1,
-                      ),
+                          fontSize: 42,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 1.1),
                     ),
                     const SizedBox(height: 35),
+
                     ClipRRect(
                       borderRadius: BorderRadius.circular(35),
                       child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                        filter:
+                        ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                         child: Container(
                           padding: const EdgeInsets.all(30),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.04),
-                            borderRadius: BorderRadius.circular(35),
+                            color:
+                            Colors.white.withOpacity(0.04),
+                            borderRadius:
+                            BorderRadius.circular(35),
                             border: Border.all(
-                                color: Colors.white.withOpacity(0.08)),
+                                color: Colors.white
+                                    .withOpacity(0.08)),
                           ),
-                          child: Column(
-                            children: [
-                              _customField(_nameController, 'FULL NAME',
-                                  Icons.person_outline),
-                              const SizedBox(height: 20),
-                              _customField(
-                                  _emailController,
-                                  'EMAIL ADDRESS',
-                                  Icons.email_outlined,
-                                  type: TextInputType.emailAddress),
-                              const SizedBox(height: 20),
-                              _passwordField(),
-                              const SizedBox(height: 35),
-                              _primaryButton(),
-                            ],
-                          ),
+                          child: Column(children: [
+                            _customField(_nameController,
+                                'FULL NAME', Icons.person_outline),
+                            const SizedBox(height: 20),
+                            _customField(
+                                _emailController,
+                                'EMAIL ADDRESS',
+                                Icons.email_outlined,
+                                type:
+                                TextInputType.emailAddress),
+                            const SizedBox(height: 20),
+                            _passwordField(),
+                            const SizedBox(height: 35),
+                            _primaryButton(),
+                          ]),
                         ),
                       ),
                     ),
@@ -207,13 +366,13 @@ class _SignupPageState extends State<SignupPage> {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ]),
       ),
     );
   }
 
-  // ================= UI HELPER WIDGETS =================
+  // ── UI helpers ─────────────────────────────────────────────────────────────
 
   Widget _badgeText(String text) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -232,17 +391,15 @@ class _SignupPageState extends State<SignupPage> {
   Widget _blurOrb(double size, Color color) => Container(
     width: size,
     height: size,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: color,
-      boxShadow: [
-        BoxShadow(color: color, blurRadius: 100, spreadRadius: 50)
-      ],
-    ),
+    decoration: BoxDecoration(shape: BoxShape.circle, color: color),
   );
 
-  Widget _customField(TextEditingController c, String label, IconData icon,
-      {TextInputType type = TextInputType.text}) {
+  Widget _customField(
+      TextEditingController c,
+      String label,
+      IconData icon, {
+        TextInputType type = TextInputType.text,
+      }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -276,18 +433,18 @@ class _SignupPageState extends State<SignupPage> {
         const SizedBox(height: 8),
         TextField(
           controller: _passwordController,
-          obscureText: obscure,
+          obscureText: _obscure,
           style: const TextStyle(color: Colors.white, fontSize: 15),
           decoration: _inputDeco(Icons.lock_outline).copyWith(
             suffixIcon: IconButton(
               icon: Icon(
-                obscure
+                _obscure
                     ? Icons.visibility_off_outlined
                     : Icons.visibility_outlined,
                 color: Colors.white38,
                 size: 18,
               ),
-              onPressed: () => setState(() => obscure = !obscure),
+              onPressed: () => setState(() => _obscure = !_obscure),
             ),
           ),
         ),
@@ -296,18 +453,20 @@ class _SignupPageState extends State<SignupPage> {
   }
 
   InputDecoration _inputDeco(IconData icon) => InputDecoration(
-    prefixIcon:
-    Icon(icon, color: Colors.cyanAccent.withOpacity(0.7), size: 20),
+    prefixIcon: Icon(icon,
+        color: Colors.cyanAccent.withOpacity(0.7), size: 20),
     filled: true,
     fillColor: Colors.black.withOpacity(0.25),
     contentPadding: const EdgeInsets.symmetric(vertical: 18),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: BorderSide(color: Colors.white.withOpacity(0.05)),
+      borderSide:
+      BorderSide(color: Colors.white.withOpacity(0.05)),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(color: Colors.cyanAccent, width: 1.2),
+      borderSide: const BorderSide(
+          color: Colors.cyanAccent, width: 1.2),
     ),
   );
 
@@ -315,22 +474,22 @@ class _SignupPageState extends State<SignupPage> {
     width: double.infinity,
     height: 60,
     child: ElevatedButton(
-      onPressed: loading ? null : signupWithEmail,
+      onPressed: _loading ? null : _signup,
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.cyanAccent,
         foregroundColor: const Color(0xFF0F2027),
-        shape:
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
         elevation: 10,
         shadowColor: Colors.cyanAccent.withOpacity(0.3),
       ),
-      child: loading
+      child: _loading
           ? const SizedBox(
-        height: 25,
-        width: 25,
-        child: CircularProgressIndicator(
-            strokeWidth: 3, color: Color(0xFF0F2027)),
-      )
+          height: 25,
+          width: 25,
+          child: CircularProgressIndicator(
+              strokeWidth: 3,
+              color: Color(0xFF0F2027)))
           : const Text('CREATE ACCOUNT',
           style: TextStyle(
               fontWeight: FontWeight.w900,

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:css/services/session_service.dart';
+import 'package:css/services/auth_guard_service.dart'; // ✅ NEW
 
 class OtpVerifyPage extends StatefulWidget {
   final String email;
@@ -87,10 +88,14 @@ class _OtpVerifyPageState extends State<OtpVerifyPage>
 
       if (res.user == null) throw Exception('Verification failed');
 
-      // ✅ OTP সফল হলে device session save করো
+      // ✅ Session save করো
       await SessionService.saveSession();
 
       if (!mounted) return;
+
+      // ✅ AuthGuard চালু করো — admin block/delete হলে auto logout হবে
+      AuthGuardService.init(context);
+
       Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
     } on AuthException catch (e) {
       _showMessage(e.message);
@@ -540,7 +545,8 @@ class _OtpVerifyPageState extends State<OtpVerifyPage>
         child: SizedBox(
           width: 22,
           height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+          child:
+          CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
         ),
       ),
     );
@@ -577,8 +583,8 @@ class _OtpVerifyPageState extends State<OtpVerifyPage>
           const SizedBox(width: 10),
           Text(
             'পুনরায় পাঠাতে অপেক্ষা করুন',
-            style:
-            TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 12.5),
+            style: TextStyle(
+                color: Colors.white.withOpacity(0.35), fontSize: 12.5),
           ),
         ],
       );

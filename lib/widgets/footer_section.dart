@@ -21,6 +21,7 @@ class _FooterSectionState extends State<FooterSection> with SingleTickerProvider
   final MapController _mapController = MapController();
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
+  bool _isSatellite = true; // default satellite
 
   @override
   void initState() {
@@ -129,7 +130,13 @@ class _FooterSectionState extends State<FooterSection> with SingleTickerProvider
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(28),
         border: Border.all(color: borderColor),
-        boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 10))],
+        boxShadow: isDark ? [] : [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          )
+        ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
@@ -137,12 +144,37 @@ class _FooterSectionState extends State<FooterSection> with SingleTickerProvider
           children: [
             FlutterMap(
               mapController: _mapController,
-              options: const MapOptions(initialCenter: cssLocation, initialZoom: 16),
+              options: const MapOptions(
+                initialCenter: cssLocation,
+                initialZoom: 16,
+              ),
               children: [
+                // ── ১. মূল স্যাটেলাইট ইমেজ লেয়ার ──
                 TileLayer(
                   urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-                  userAgentPackageName: 'com.css.mobile',
+                  userAgentPackageName: 'com.example.css',
+                  maxNativeZoom: 19,
                 ),
+
+                // ── ২. স্যাটেলাইট মোডে থাকাকালীন নাম বা লেবেল দেখানোর লেয়ার ──
+                if (_isSatellite)
+                  TileLayer(
+                    // ArcGIS Reference লেয়ার যা স্যাটেলাইট ইমেজের উপর রাস্তা ও নাম দেখায়
+                    urlTemplate: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+                    userAgentPackageName: 'com.example.css',
+                    backgroundColor: Colors.transparent, // স্বচ্ছ রাখা জরুরি
+                    maxNativeZoom: 19,
+                  )
+                else
+                // নরমাল মোডের জন্য Stadia বা OSM
+                  TileLayer(
+                    urlTemplate: 'https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}{r}.png?api_key={api_key}',
+                    additionalOptions: const {'api_key': '358e61e3-35bf-4799-8478-31851fd2ea7c'},
+                    userAgentPackageName: 'com.example.css',
+                    maxNativeZoom: 20,
+                  ),
+
+                // ── ৩. মার্কার ──
                 MarkerLayer(
                   markers: [
                     Marker(
@@ -155,19 +187,31 @@ class _FooterSectionState extends State<FooterSection> with SingleTickerProvider
               ],
             ),
 
+            // ── Map type toggle chip ──
             Positioned(
               top: 14, left: 14,
-              child: _mapChip(SC.tr('satellite_view'), Icons.satellite_alt_rounded, SC.green),
+              child: GestureDetector(
+                onTap: () => setState(() => _isSatellite = !_isSatellite),
+                child: _mapChip(
+                  _isSatellite ? SC.tr('satellite_view') : SC.tr('normal_view'),
+                  _isSatellite ? Icons.satellite_alt_rounded : Icons.map_rounded,
+                  _isSatellite ? SC.green : SC.cyan,
+                ),
+              ),
             ),
 
+            // ── Google Maps button ──
             Positioned(
               bottom: 14, left: 14,
               child: GestureDetector(
-                onTap: () => launchUrl(Uri.parse('https://www.google.com/maps/search/?api=1&query=${cssLocation.latitude},${cssLocation.longitude}')),
+                onTap: () => launchUrl(Uri.parse(
+                  'https://www.google.com/maps/search/?api=1&query=${cssLocation.latitude},${cssLocation.longitude}',
+                )),
                 child: _mapChip(SC.tr('open_google_maps'), Icons.open_in_new_rounded, SC.cyan),
               ),
             ),
 
+            // ── Zoom buttons ──
             Positioned(
               bottom: 14, right: 14,
               child: Column(
@@ -178,6 +222,23 @@ class _FooterSectionState extends State<FooterSection> with SingleTickerProvider
                 ],
               ),
             ),
+
+            // ── OSM Attribution ──
+            if (!_isSatellite)
+              Positioned(
+                bottom: 4, right: 60,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    '© OpenStreetMap contributors',
+                    style: TextStyle(fontSize: 8, color: Colors.black87),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -200,7 +261,10 @@ class _FooterSectionState extends State<FooterSection> with SingleTickerProvider
             children: [
               Icon(icon, size: 14, color: color),
               const SizedBox(width: 6),
-              Text(text, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+              Text(
+                text,
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800),
+              ),
             ],
           ),
         ),
@@ -210,7 +274,10 @@ class _FooterSectionState extends State<FooterSection> with SingleTickerProvider
 
   Widget _zoomBtn(IconData icon, double delta) {
     return GestureDetector(
-      onTap: () => _mapController.move(_mapController.camera.center, _mapController.camera.zoom + delta),
+      onTap: () => _mapController.move(
+        _mapController.camera.center,
+        _mapController.camera.zoom + delta,
+      ),
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
@@ -296,22 +363,32 @@ class _FooterSectionState extends State<FooterSection> with SingleTickerProvider
               children: [
                 Icon(icon, color: color, size: 20),
                 const SizedBox(width: 10),
-                Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                Text(
+                  label,
+                  style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2),
+                ),
               ],
             ),
             const SizedBox(height: 10),
-            Text(value, style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500, height: 1.4), maxLines: 2),
+            Text(
+              value,
+              style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500, height: 1.4),
+              maxLines: 2,
+            ),
             if (onTap != null) ...[
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: Text(
                   label.contains(SC.tr('hotline_label')) ? SC.tr('call_now') : SC.tr('mail_now'),
                   style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800),
                 ),
               ),
-            ]
+            ],
           ],
         ),
       ),
@@ -328,11 +405,22 @@ class _FooterSectionState extends State<FooterSection> with SingleTickerProvider
       ),
       child: Row(
         children: [
-          Text(SC.tr('follow_us'), style: TextStyle(color: subTextColor, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(
+            SC.tr('follow_us'),
+            style: TextStyle(color: subTextColor, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
           const Spacer(),
-          _socialBtn(Icons.facebook_rounded, const Color(0xFF1877F2), () => launchUrl(Uri.parse('https://www.facebook.com/organizationofcss'))),
+          _socialBtn(
+            Icons.facebook_rounded,
+            const Color(0xFF1877F2),
+                () => launchUrl(Uri.parse('https://www.facebook.com/organizationofcss')),
+          ),
           const SizedBox(width: 10),
-          _socialBtn(Icons.language_rounded, SC.cyan, () => launchUrl(Uri.parse('https://consciousstudentsociety.site'))),
+          _socialBtn(
+            Icons.language_rounded,
+            SC.cyan,
+                () => launchUrl(Uri.parse('https://consciousstudentsociety.site')),
+          ),
         ],
       ),
     );
@@ -371,7 +459,12 @@ class _FooterSectionState extends State<FooterSection> with SingleTickerProvider
             child: Text(
               SC.tr('copyright_text'),
               textAlign: TextAlign.center,
-              style: TextStyle(color: subTextColor, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1),
+              style: TextStyle(
+                color: subTextColor,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1,
+              ),
             ),
           ),
         ],

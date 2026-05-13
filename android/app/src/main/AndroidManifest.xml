@@ -1,31 +1,22 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.css">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- দ্রষ্টব্য: এখানে package="..." থাকবে না, এটি এখন build.gradle.kts থেকে নিয়ন্ত্রিত হয় -->
 
+    <!-- প্রয়োজনীয় পারমিশনসমূহ -->
     <uses-permission android:name="android.permission.INTERNET"/>
-
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
 
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
-
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
-
+    <!-- Cloudinary তে ইমেজ আপলোডের জন্য গ্যালারি পারমিশন -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
 
     <application
         android:name="${applicationName}"
-        android:label="css"
-        android:icon="@mipmap/launcher_icon"
-        android:requestLegacyExternalStorage="true">
+        android:label="CSS"
+        android:icon="@mipmap/launcher_icon">
 
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@drawable/ic_notification" />
-
-        <meta-data
-            android:name="com.google.firebase.messaging.default_notification_color"
-            android:resource="@color/notification_color" />
-
+        <!-- Google Maps API Key: এখানে তোমার আসল কী-টি বসাবে -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="YOUR_GOOGLE_MAPS_API_KEY"/>
@@ -50,15 +41,17 @@
             </intent-filter>
         </activity>
 
+        <!-- Supabase Auth Redirect: ব্রাউজার থেকে অ্যাপে ফিরে আসার লজিক -->
         <activity
-            android:name="io.supabase.flutter.SupabaseAuthActivity"
+            android:name="com.aboutyou.dart_messaging.SupabaseAuthActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
+                <!-- scheme হিসেবে তোমার প্যাকেজ নাম ব্যবহার করা সবচেয়ে নিরাপদ -->
                 <data
-                    android:scheme="io.supabase.flutter"
+                    android:scheme="com.css.society.app"
                     android:host="login-callback"/>
             </intent-filter>
         </activity>
@@ -69,10 +62,19 @@
 
     </application>
 
+    <!-- Android 11+ এর জন্য কুয়েরি পারমিশন (URL/Call/Map ওপেন করার জন্য) -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
         </intent>
     </queries>
 

@@ -118,7 +118,8 @@ class _CommitteePageState extends State<CommitteePage> with TickerProviderStateM
             'short_bio, present_committee_note, blood_group, location_dms, '
             'school_name, school_group, school_passing_year, '
             'college_name, college_group, college_passing_year, '
-            'university_name, department, current_year, current_semester',
+            'university_name, department, current_year, current_semester, '
+            'visibility', // ← যোগ করো
       ).eq('member_type', _memberType);
 
       final List<CommitteeMember> members = [];
@@ -172,12 +173,14 @@ class _CommitteePageState extends State<CommitteePage> with TickerProviderStateM
 
   void _openPersonDetails(CommitteeMember member) {
     final raw = _rawDataMap[member.id] ?? {};
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
     HapticFeedback.lightImpact();
     Navigator.push(context, PageRouteBuilder(
       pageBuilder: (context, animation, secondaryAnimation) => PersonDetailsPage(
         category: SC.tr('allMembers'),
         heroTag: 'committee_${member.id}',
-        name: member.fullName, role: member.position,
+        name: member.fullName,
+        role: member.position,
         imageUrl: member.imagePath,
         message: raw['present_committee_note'] as String?,
         bio: raw['short_bio'] as String?,
@@ -194,15 +197,20 @@ class _CommitteePageState extends State<CommitteePage> with TickerProviderStateM
         bloodGroup: raw['blood_group'] as String?,
         locationDms: raw['location_dms'] as String?,
         themeColor: _C.gold,
+        visibility: raw['visibility'] as String? ?? 'public', // ← যোগ
+        isOwner: currentUserId == member.id, // ← এটা restore করুন                 // ← যোগ
       ),
-      transitionsBuilder: (context, animation, secondaryAnimation, child) => FadeTransition(
-        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-        child: SlideTransition(
-          position: Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
-              .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-          child: child,
-        ),
-      ),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.04), end: Offset.zero,
+              ).animate(CurvedAnimation(
+                  parent: animation, curve: Curves.easeOutCubic)),
+              child: child,
+            ),
+          ),
       transitionDuration: const Duration(milliseconds: 380),
     ));
   }

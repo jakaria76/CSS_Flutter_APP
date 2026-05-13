@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:css/pages/MemberManage/MemberManagementPage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -151,6 +152,7 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
           case 28: nextRoute = const ManageAdvisorPage(); break;
           case 29: nextRoute = const BannerManagementPage(); break;
           case 30: nextRoute = const SettingsPage(); break;
+          case 31: nextRoute = const MemberManagementPage(); break;
           default: return;
         }
 

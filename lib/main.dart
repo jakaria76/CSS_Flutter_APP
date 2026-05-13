@@ -13,6 +13,9 @@ import 'member_home.dart';
 // SETTINGS
 import 'pages/SettingsPage/settings_constants.dart';
 
+// SERVICES
+import 'services/auth_guard_service.dart'; // ✅ NEW
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -78,9 +81,38 @@ class MyApp extends StatelessWidget {
     }
 
     if (session != null) {
-      return const MemberHome(isGuest: false);
+      // ✅ App reopen এ already logged in থাকলে AuthGuard চালু করো
+      // BuildContext এখানে নেই, তাই _AuthStartWrapper দিয়ে handle করছি
+      return const _AuthStartWrapper();
     }
 
     return const WelcomePage();
+  }
+}
+
+/// ✅ Already logged-in user এর জন্য AuthGuard init করে তারপর MemberHome দেখায়
+class _AuthStartWrapper extends StatefulWidget {
+  const _AuthStartWrapper();
+
+  @override
+  State<_AuthStartWrapper> createState() => _AuthStartWrapperState();
+}
+
+class _AuthStartWrapperState extends State<_AuthStartWrapper> {
+  @override
+  void initState() {
+    super.initState();
+    // Widget build হওয়ার পরে context ready — guard চালু করো
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null && mounted) {
+        AuthGuardService.init(context);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const MemberHome(isGuest: false);
   }
 }

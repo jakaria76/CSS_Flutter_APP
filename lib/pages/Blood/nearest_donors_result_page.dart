@@ -371,10 +371,16 @@ class _NearestDonorsResultPageState extends State<NearestDonorsResultPage>
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.yourapp.blooddonor',
-                maxZoom: 19,
+                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c'],
+                userAgentPackageName: 'com.example.css',
+                maxNativeZoom: 19,
               ),
+              // TileLayer(
+              //   urlTemplate: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+              //   userAgentPackageName: 'com.example.css',
+              //   maxNativeZoom: 20,
+              // ),
               PolylineLayer(polylines: _buildPolylines()),
               MarkerLayer(markers: [
                 Marker(

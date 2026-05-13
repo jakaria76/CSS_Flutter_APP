@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/post_model.dart';
 import 'package:css/pages/feed/ManagePostPage.dart';
+import 'package:css/pages/feed/FullscreenImageViewer.dart';
 import 'package:css/pages/SettingsPage/settings_constants.dart';
 
 class PostCard extends StatefulWidget {
@@ -26,10 +27,9 @@ class PostCard extends StatefulWidget {
 
 class _PostCardState extends State<PostCard>
     with SingleTickerProviderStateMixin {
-  int _currentImageIndex = 0;
-  final PageController _pageController = PageController();
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
+  bool _isExpanded = false;
 
   @override
   void initState() {
@@ -44,7 +44,6 @@ class _PostCardState extends State<PostCard>
 
   @override
   void dispose() {
-    _pageController.dispose();
     _fadeController.dispose();
     super.dispose();
   }
@@ -65,6 +64,18 @@ class _PostCardState extends State<PostCard>
     if (result == true) widget.onPostUpdated?.call();
   }
 
+  void _openImageViewer(int index) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FullscreenImageViewer(
+          images: widget.post.images,
+          initialIndex: index,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
@@ -82,16 +93,13 @@ class _PostCardState extends State<PostCard>
   Widget _buildPostCard(BuildContext context) {
     final isDark = SC.isDark;
 
-    // ── Color tokens ──────────────────────────────────────────────────────────
-    final textColor    = isDark ? const Color(0xFFE8ECF4) : const Color(0xFF0D1117);
+    final textColor = isDark ? const Color(0xFFE8ECF4) : const Color(0xFF0D1117);
     final subTextColor = isDark ? const Color(0xFF8B95A7) : const Color(0xFF6B7280);
     final adminBadgeBg = isDark
         ? const Color(0xFF00C6FF).withValues(alpha: 0.12)
         : const Color(0xFF0066CC).withValues(alpha: 0.08);
-    final adminBadgeColor = isDark ? const Color(0xFF00C6FF) : const Color(0xFF0055BB);
-    final avatarBg = isDark
-        ? const Color(0xFF00C6FF).withValues(alpha: 0.15)
-        : const Color(0xFF0055BB).withValues(alpha: 0.10);
+    final adminBadgeColor =
+    isDark ? const Color(0xFF00C6FF) : const Color(0xFF0055BB);
     final editBtnBg = isDark
         ? Colors.white.withValues(alpha: 0.06)
         : Colors.black.withValues(alpha: 0.04);
@@ -102,12 +110,11 @@ class _PostCardState extends State<PostCard>
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // ── Header ────────────────────────────────────────────────────────
+          // ── Header ──────────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
             child: Row(
               children: [
-                // Avatar with glow ring
                 Container(
                   width: 44,
                   height: 44,
@@ -130,14 +137,15 @@ class _PostCardState extends State<PostCard>
                       ),
                     ],
                   ),
-                  child: const Icon(
-                    Icons.admin_panel_settings_rounded,
-                    color: Colors.white,
-                    size: 22,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(100),
+                    child: Image.asset(
+                      'assets/images/csslogo.jpg',
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 11),
-
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,7 +162,6 @@ class _PostCardState extends State<PostCard>
                             ),
                           ),
                           const SizedBox(width: 7),
-                          // Admin badge with pill shape
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 7, vertical: 2.5),
@@ -217,8 +224,6 @@ class _PostCardState extends State<PostCard>
                     ],
                   ),
                 ),
-
-                // Edit button
                 if (_isAdmin())
                   GestureDetector(
                     onTap: _navigateToEditPost,
@@ -246,24 +251,53 @@ class _PostCardState extends State<PostCard>
             ),
           ),
 
-          // ── Caption ──────────────────────────────────────────────────────
+          // ── Caption ─────────────────────────────────────────────────────
           if (widget.post.caption.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-              child: Text(
-                widget.post.caption,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 15,
-                  height: 1.6,
-                  fontWeight: FontWeight.w400,
-                  letterSpacing: 0.1,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.post.caption,
+                    maxLines: _isExpanded ? null : 3,
+                    overflow: _isExpanded
+                        ? TextOverflow.visible
+                        : TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 15,
+                      height: 1.6,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 0.1,
+                    ),
+                  ),
+                  if (widget.post.caption.length > 120)
+                    GestureDetector(
+                      onTap: () =>
+                          setState(() => _isExpanded = !_isExpanded),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          _isExpanded ? 'Show less' : 'See more',
+                          style: TextStyle(
+                            color: adminBadgeColor,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
 
-          // ── Images ───────────────────────────────────────────────────────
-          if (widget.post.images.isNotEmpty) _buildImageSection(isDark),
+          // ── Facebook-style Image Grid ────────────────────────────────────
+          if (widget.post.images.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: _buildFacebookGrid(isDark),
+            ),
 
           const SizedBox(height: 6),
         ],
@@ -271,109 +305,267 @@ class _PostCardState extends State<PostCard>
     );
   }
 
-  // ── Image Section ─────────────────────────────────────────────────────────
-  Widget _buildImageSection(bool isDark) {
-    final hasMultiple = widget.post.images.length > 1;
+  // ── Facebook Grid ────────────────────────────────────────────────────────
+  Widget _buildFacebookGrid(bool isDark) {
+    final images = widget.post.images;
+    final count = images.length;
 
-    return Stack(
+    if (count == 1) {
+      return _gridImage(images[0], isDark,
+          height: 280,
+          borderRadius: BorderRadius.circular(14),
+          onTap: () => _openImageViewer(0));
+    }
+
+    if (count == 2) {
+      return Row(
+        children: [
+          Expanded(
+            child: _gridImage(images[0], isDark,
+                height: 220,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(14),
+                  bottomLeft: Radius.circular(14),
+                ),
+                onTap: () => _openImageViewer(0)),
+          ),
+          const SizedBox(width: 2),
+          Expanded(
+            child: _gridImage(images[1], isDark,
+                height: 220,
+                borderRadius: const BorderRadius.only(
+                  topRight: Radius.circular(14),
+                  bottomRight: Radius.circular(14),
+                ),
+                onTap: () => _openImageViewer(1)),
+          ),
+        ],
+      );
+    }
+
+    if (count == 3) {
+      return Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: _gridImage(images[0], isDark,
+                height: 220,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(14),
+                  bottomLeft: Radius.circular(14),
+                ),
+                onTap: () => _openImageViewer(0)),
+          ),
+          const SizedBox(width: 2),
+          Expanded(
+            child: Column(
+              children: [
+                _gridImage(images[1], isDark,
+                    height: 109,
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(14),
+                    ),
+                    onTap: () => _openImageViewer(1)),
+                const SizedBox(height: 2),
+                _gridImage(images[2], isDark,
+                    height: 109,
+                    borderRadius: const BorderRadius.only(
+                      bottomRight: Radius.circular(14),
+                    ),
+                    onTap: () => _openImageViewer(2)),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (count == 4) {
+      return Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _gridImage(images[0], isDark,
+                    height: 160,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(14),
+                    ),
+                    onTap: () => _openImageViewer(0)),
+              ),
+              const SizedBox(width: 2),
+              Expanded(
+                child: _gridImage(images[1], isDark,
+                    height: 160,
+                    borderRadius: const BorderRadius.only(
+                      topRight: Radius.circular(14),
+                    ),
+                    onTap: () => _openImageViewer(1)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Row(
+            children: [
+              Expanded(
+                child: _gridImage(images[2], isDark,
+                    height: 160,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(14),
+                    ),
+                    onTap: () => _openImageViewer(2)),
+              ),
+              const SizedBox(width: 2),
+              Expanded(
+                child: _gridImage(images[3], isDark,
+                    height: 160,
+                    borderRadius: const BorderRadius.only(
+                      bottomRight: Radius.circular(14),
+                    ),
+                    onTap: () => _openImageViewer(3)),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    // 5+ images
+    final remaining = count - 4;
+    return Column(
       children: [
-        SizedBox(
-          height: 260,
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: widget.post.images.length,
-            onPageChanged: (i) => setState(() => _currentImageIndex = i),
-            itemBuilder: (_, index) => Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: CachedNetworkImage(
-                  imageUrl: widget.post.images[index],
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: isDark
-                            ? [const Color(0xFF1E2535), const Color(0xFF252D3F)]
-                            : [const Color(0xFFEEF0F4), const Color(0xFFE4E7ED)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: Center(
-                      child: CircularProgressIndicator(
-                        color: isDark
-                            ? const Color(0xFF00C6FF)
-                            : const Color(0xFF0055BB),
-                        strokeWidth: 2,
-                      ),
-                    ),
+        Row(
+          children: [
+            Expanded(
+              child: _gridImage(images[0], isDark,
+                  height: 160,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(14),
                   ),
-                  errorWidget: (_, __, ___) => Container(
-                    color: isDark
-                        ? const Color(0xFF1E2535)
-                        : const Color(0xFFEEF0F4),
-                    child: Icon(Icons.broken_image_rounded,
-                        color: isDark ? Colors.white24 : Colors.black26,
-                        size: 48),
+                  onTap: () => _openImageViewer(0)),
+            ),
+            const SizedBox(width: 2),
+            Expanded(
+              child: _gridImage(images[1], isDark,
+                  height: 160,
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(14),
+                  ),
+                  onTap: () => _openImageViewer(1)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Row(
+          children: [
+            Expanded(
+              child: _gridImage(images[2], isDark,
+                  height: 130,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(14),
+                  ),
+                  onTap: () => _openImageViewer(2)),
+            ),
+            const SizedBox(width: 2),
+            Expanded(
+              child: _gridImage(images[3], isDark,
+                  height: 130,
+                  borderRadius: BorderRadius.zero,
+                  onTap: () => _openImageViewer(3)),
+            ),
+            const SizedBox(width: 2),
+            // +remaining overlay
+            Expanded(
+              child: GestureDetector(
+                onTap: () => _openImageViewer(4),
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    bottomRight: Radius.circular(14),
+                  ),
+                  child: Stack(
+                    children: [
+                      SizedBox(
+                        height: 130,
+                        width: double.infinity,
+                        child: CachedNetworkImage(
+                          imageUrl: images[4],
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Container(
+                        height: 130,
+                        color: Colors.black.withValues(alpha: 0.55),
+                        child: Center(
+                          child: Text(
+                            '+$remaining',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _gridImage(
+      String url,
+      bool isDark, {
+        required double height,
+        BorderRadius borderRadius = BorderRadius.zero,
+        VoidCallback? onTap,
+      }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: SizedBox(
+          height: height,
+          width: double.infinity,
+          child: CachedNetworkImage(
+            imageUrl: url,
+            fit: BoxFit.cover,
+            placeholder: (_, __) => Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [const Color(0xFF1E2535), const Color(0xFF252D3F)]
+                      : [const Color(0xFFEEF0F4), const Color(0xFFE4E7ED)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: isDark
+                      ? const Color(0xFF00C6FF)
+                      : const Color(0xFF0055BB),
+                  strokeWidth: 2,
+                ),
+              ),
+            ),
+            errorWidget: (_, __, ___) => Container(
+              color: isDark
+                  ? const Color(0xFF1E2535)
+                  : const Color(0xFFEEF0F4),
+              child: Icon(
+                Icons.broken_image_rounded,
+                color: isDark ? Colors.white24 : Colors.black26,
+                size: 36,
               ),
             ),
           ),
         ),
-
-        // Image counter badge (top right)
-        if (hasMultiple)
-          Positioned(
-            top: 12,
-            right: 26,
-            child: Container(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                '${_currentImageIndex + 1}/${widget.post.images.length}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5,
-                ),
-              ),
-            ),
-          ),
-
-        // Dot indicators (bottom)
-        if (hasMultiple)
-          Positioned(
-            bottom: 10,
-            left: 0,
-            right: 0,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                widget.post.images.length,
-                    (index) => AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeInOut,
-                  margin: const EdgeInsets.symmetric(horizontal: 2.5),
-                  width: _currentImageIndex == index ? 22 : 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: _currentImageIndex == index
-                        ? Colors.white
-                        : Colors.white.withValues(alpha: 0.45),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                ),
-              ),
-            ),
-          ),
-      ],
+      ),
     );
   }
 

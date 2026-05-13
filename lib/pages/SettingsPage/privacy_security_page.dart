@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'settings_constants.dart';
-import 'mfa_setup_page.dart';
+import '../account/mfa_setup_page.dart';
 
 class PrivacySecurityPage extends StatefulWidget {
   const PrivacySecurityPage({super.key});

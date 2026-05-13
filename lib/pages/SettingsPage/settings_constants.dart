@@ -300,7 +300,7 @@ class SC {
     'release_date': {'বাংলা': 'রিলিজ ডেট', 'English': 'Release Date'},
     'app_info': {'বাংলা': 'অ্যাপ তথ্য', 'English': 'App Info'},
     'developer': {'বাংলা': 'ডেভেলপার', 'English': 'Developer'},
-    'dev_team': {'বাংলা': 'CSS ডেভ টিম', 'English': 'CSS Dev Team'},
+    'dev_team': {'বাংলা': 'মো: জাকারিয়া মাহমুদ', 'English': 'MD.JAKARIA MAHMUD'},
     'contact': {'বাংলা': 'যোগাযোগ', 'English': 'Contact'},
     'legal': {'বাংলা': 'লিগ্যাল', 'English': 'Legal'},
     'privacy_policy': {'বাংলা': 'প্রাইভেসি পলিসি', 'English': 'Privacy Policy'},
@@ -1464,14 +1464,7 @@ class SC {
     'live_chat': {'বাংলা': 'লাইভ চ্যাট', 'English': 'Live Chat'},
     'send_email': {'বাংলা': 'ইমেইল পাঠান', 'English': 'Send Email'},
     'call_us': {'বাংলা': 'ফোন করুন', 'English': 'Call Us'},
-    'faq_q1': {'বাংলা': 'রক্ত দান কীভাবে করব?', 'English': 'How to donate blood?'},
-    'faq_a1': {'বাংলা': 'Blood Groups-এ গিয়ে ম্যাচ খুঁজুন এবং যোগাযোগ করুন।', 'English': 'Go to Blood Groups and find a matching donor.'},
-    'faq_q2': {'বাংলা': 'প্রোফাইল কীভাবে আপডেট করব?', 'English': 'How to update my profile?'},
-    'faq_a2': {'বাংলা': 'Settings > Profile-এ গিয়ে তথ্য সম্পাদনা করুন।', 'English': 'Go to Settings > Profile to edit your information.'},
-    'faq_q3': {'বাংলা': 'পাসওয়ার্ড ভুলে গেলে কী করব?', 'English': 'Forgot my password?'},
-    'faq_a3': {'বাংলা': 'লগইন স্ক্রিনে "পাসওয়ার্ড ভুলে গেছি" অপশনটি ব্যবহার করুন।', 'English': 'Use the Forgot Password option on the login screen.'},
-    'faq_q4': {'বাংলা': 'অ্যাকাউন্ট ডিলিট করব কীভাবে?', 'English': 'How to delete my account?'},
-    'faq_a4': {'বাংলা': 'Settings > Account > Delete Account থেকে করা যাবে।', 'English': 'Go to Settings > Account > Delete Account.'},
+
     'no_result': {'বাংলা': 'কোনো ফলাফল পাওয়া যায়নি', 'English': 'No results found'},
     'email_not_found': {'বাংলা': 'ইমেইল অ্যাপ পাওয়া যায়নি', 'English': 'No email app found'},
     'chat_coming_soon': {'বাংলা': 'লাইভ চ্যাট শীঘ্রই আসছে', 'English': 'Live chat coming soon'},
@@ -1566,59 +1559,115 @@ class SC {
 // Privacy Policy in-app content
     'pp_title':          {'বাংলা': 'গোপনীয়তা নীতি',           'English': 'Privacy Policy'},
     'pp_last_updated':   {'বাংলা': 'সর্বশেষ আপডেট: জানুয়ারি ২০২৫','English': 'Last updated: January 2025'},
+
     'pp_intro_title':    {'বাংলা': 'ভূমিকা',                  'English': 'Introduction'},
     'pp_intro_body':     {
-      'বাংলা': 'CSS App আপনার গোপনীয়তাকে সর্বোচ্চ গুরুত্ব দেয়। এই নীতিতে আমরা বর্ণনা করি কীভাবে আপনার তথ্য সংগ্রহ, ব্যবহার এবং সুরক্ষিত করা হয়।',
-      'English': 'CSS App values your privacy. This policy describes how we collect, use, and protect your information.',
-    },
-    'pp_data_title':     {'বাংলা': 'আমরা যা সংগ্রহ করি',       'English': 'What We Collect'},
-    'pp_data_body':      {
-      'বাংলা': '• আপনার নাম ও ইমেইল ঠিকানা\n• অ্যাপ ব্যবহারের তথ্য\n• ডিভাইসের সাধারণ তথ্য\n• আপনার দেওয়া ফিডব্যাক ও রিপোর্ট',
-      'English': '• Your name and email address\n• App usage information\n• General device information\n• Feedback and reports you submit',
-    },
-    'pp_use_title':      {'বাংলা': 'তথ্য ব্যবহার',             'English': 'How We Use It'},
-    'pp_use_body':       {
-      'বাংলা': 'আপনার তথ্য শুধুমাত্র অ্যাপের সেবা উন্নত করতে এবং আপনার অভিজ্ঞতা ব্যক্তিগতকরণ করতে ব্যবহার করা হয়। আমরা কখনো তৃতীয় পক্ষের কাছে আপনার তথ্য বিক্রি করি না।',
-      'English': 'Your data is used solely to improve app services and personalize your experience. We never sell your data to third parties.',
-    },
-    'pp_security_title': {'বাংলা': 'নিরাপত্তা',               'English': 'Security'},
-    'pp_security_body':  {
-      'বাংলা': 'আপনার তথ্য Supabase-এর এনক্রিপ্টেড সার্ভারে সংরক্ষিত থাকে। আমরা সর্বোচ্চ নিরাপত্তা মান বজায় রাখি।',
-      'English': 'Your data is stored on Supabase\'s encrypted servers. We maintain the highest security standards.',
-    },
-    'pp_contact_title':  {'বাংলা': 'যোগাযোগ',                 'English': 'Contact Us'},
-    'pp_contact_body':   {
-      'বাংলা': 'গোপনীয়তা সংক্রান্ত যেকোনো প্রশ্নের জন্য আমাদের ইমেইল করুন: support@cssapp.com',
-      'English': 'For any privacy-related questions, email us at: support@cssapp.com',
+      'বাংলা': 'CSS App আপনার গোপনীয়তাকে সর্বোচ্চ গুরুত্ব দেয়। আমরা বিশ্বাস করি যে আপনার ব্যক্তিগত তথ্য সুরক্ষিত রাখা আমাদের মূল দায়িত্ব। এই গোপনীয়তা নীতি আপনাকে জানাবে কীভাবে আমরা আপনার তথ্য সংগ্রহ করি, কেন করি, কীভাবে সংরক্ষণ করি এবং আপনার অধিকার কী কী।',
+      'English': 'CSS App is committed to protecting your privacy. We believe that safeguarding your personal data is our core responsibility. This Privacy Policy explains what information we collect, why we collect it, how it is stored, and what rights you have as a user.',
     },
 
+    'pp_data_title':     {'বাংলা': 'আমরা যা সংগ্রহ করি',       'English': 'What We Collect'},
+    'pp_data_body':      {
+      'বাংলা': '• আপনার নাম ও ইমেইল ঠিকানা — অ্যাকাউন্ট তৈরি ও যোগাযোগের জন্য\n• অ্যাপ ব্যবহারের তথ্য — কোন ফিচার কতটুকু ব্যবহার হচ্ছে তা বোঝার জন্য\n• ডিভাইসের সাধারণ তথ্য — যেমন অপারেটিং সিস্টেম ও অ্যাপের ভার্সন\n• আপনার দেওয়া ফিডব্যাক ও বাগ রিপোর্ট — অ্যাপ উন্নত করতে\n\nআমরা কখনো আপনার লোকেশন, কন্ট্যাক্ট লিস্ট বা মিডিয়া ফাইলে অ্যাক্সেস নিই না।',
+      'English': '• Your name and email address — for account creation and communication\n• App usage data — to understand how features are being used\n• General device information — such as OS version and app version\n• Feedback and bug reports you submit — to improve the app\n\nWe never access your location, contact list, or media files.',
+    },
+
+    'pp_use_title':      {'বাংলা': 'তথ্য ব্যবহার',             'English': 'How We Use It'},
+    'pp_use_body':       {
+      'বাংলা': 'আমরা আপনার তথ্য শুধুমাত্র নিচের কাজে ব্যবহার করি:\n\n• অ্যাপের সেবা প্রদান ও উন্নত করা\n• আপনার অভিজ্ঞতা ব্যক্তিগতকরণ করা\n• গুরুত্বপূর্ণ আপডেট বা নিরাপত্তা সংক্রান্ত বিষয়ে আপনাকে জানানো\n• প্রযুক্তিগত সমস্যা সমাধান করা\n\nআমরা কখনো তৃতীয় পক্ষের কাছে আপনার তথ্য বিক্রি করি না বা বিজ্ঞাপনের উদ্দেশ্যে ব্যবহার করি না।',
+      'English': 'We use your data only for the following purposes:\n\n• Delivering and improving app services\n• Personalizing your in-app experience\n• Notifying you about important updates or security matters\n• Resolving technical issues\n\nWe never sell your data to third parties or use it for advertising.',
+    },
+
+    'pp_sharing_title':  {'বাংলা': 'তথ্য শেয়ারিং',            'English': 'Data Sharing'},
+    'pp_sharing_body':   {
+      'বাংলা': 'আমরা শুধুমাত্র নিচের পরিস্থিতিতে তথ্য শেয়ার করতে পারি:\n\n• আইনি বাধ্যবাধকতা পূরণের জন্য (যেমন আদালতের নির্দেশ)\n• আমাদের বিশ্বস্ত প্রযুক্তি সরবরাহকারীর সাথে (যেমন Supabase) যারা কঠোর গোপনীয়তা চুক্তিতে আবদ্ধ\n\nঅন্য কোনো ক্ষেত্রে আপনার সম্পূর্ণ সম্মতি ছাড়া তথ্য শেয়ার করা হয় না।',
+      'English': 'We may share data only in the following situations:\n\n• To comply with legal obligations (such as a court order)\n• With trusted technology providers (such as Supabase) bound by strict privacy agreements\n\nIn all other cases, your data is never shared without your explicit consent.',
+    },
+
+    'pp_retention_title':{'বাংলা': 'তথ্য সংরক্ষণ',            'English': 'Data Retention'},
+    'pp_retention_body': {
+      'বাংলা': 'আপনার তথ্য ততক্ষণ সংরক্ষিত থাকে যতক্ষণ আপনার অ্যাকাউন্ট সক্রিয় থাকে। অ্যাকাউন্ট মুছে ফেললে ৩০ দিনের মধ্যে আপনার সকল তথ্য স্থায়ীভাবে মুছে ফেলা হয়।',
+      'English': 'Your data is retained for as long as your account remains active. Upon account deletion, all your data is permanently removed within 30 days.',
+    },
+
+    'pp_rights_title':   {'বাংলা': 'আপনার অধিকার',            'English': 'Your Rights'},
+    'pp_rights_body':    {
+      'বাংলা': 'আপনার নিচের অধিকারগুলো আছে:\n\n• আপনার তথ্য দেখার অনুরোধ করতে পারবেন\n• যেকোনো সময় তথ্য সংশোধনের অনুরোধ করতে পারবেন\n• অ্যাকাউন্ট ও সকল তথ্য মুছে ফেলার অনুরোধ করতে পারবেন\n• মার্কেটিং যোগাযোগ থেকে অপ্ট-আউট করতে পারবেন\n\nএই অধিকার প্রয়োগ করতে support@cssapp.com-এ ইমেইল করুন।',
+      'English': 'You have the following rights:\n\n• Request access to your personal data\n• Request correction of inaccurate data\n• Request deletion of your account and all associated data\n• Opt out of marketing communications\n\nTo exercise these rights, email us at support@cssapp.com.',
+    },
+
+    'pp_security_title': {'বাংলা': 'নিরাপত্তা',               'English': 'Security'},
+    'pp_security_body':  {
+      'বাংলা': 'আপনার তথ্য Supabase-এর শিল্পমানের এনক্রিপ্টেড সার্ভারে সংরক্ষিত। আমরা নিচের নিরাপত্তা ব্যবস্থা বজায় রাখি:\n\n• ডেটা ট্রান্সফারে SSL/TLS এনক্রিপশন\n• রেস্ট অবস্থায় AES-256 এনক্রিপশন\n• নিয়মিত নিরাপত্তা অডিট\n• সীমিত কর্মচারী অ্যাক্সেস নিয়ন্ত্রণ',
+      'English': 'Your data is stored on Supabase\'s industry-standard encrypted servers. We maintain the following security measures:\n\n• SSL/TLS encryption for data in transit\n• AES-256 encryption for data at rest\n• Regular security audits\n• Strict employee access controls',
+    },
+
+    'pp_cookies_title':  {'বাংলা': 'কুকিজ ও ট্র্যাকিং',       'English': 'Cookies & Tracking'},
+    'pp_cookies_body':   {
+      'বাংলা': 'আমরা শুধুমাত্র অ্যাপের সঠিক কার্যকারিতার জন্য প্রয়োজনীয় সেশন তথ্য সংরক্ষণ করি। কোনো থার্ড-পার্টি ট্র্যাকিং বা বিজ্ঞাপন কুকিজ ব্যবহার করা হয় না।',
+      'English': 'We only store session data necessary for the app to function correctly. No third-party tracking or advertising cookies are used.',
+    },
+
+    'pp_contact_title':  {'বাংলা': 'যোগাযোগ',                 'English': 'Contact Us'},
+    'pp_contact_body':   {
+      'বাংলা': 'গোপনীয়তা সংক্রান্ত যেকোনো প্রশ্ন, অনুরোধ বা অভিযোগের জন্য:\n\nইমেইল: support@cssapp.com\nআমরা সাধারণত ২ কার্যদিবসের মধ্যে উত্তর দিই।',
+      'English': 'For any privacy-related questions, requests, or complaints:\n\nEmail: consciousstudentsociety@gmail.com.',
+    },
+
+
+// ─────────────────────────────────────────────
 // Terms of Service in-app content
+// ─────────────────────────────────────────────
+
     'tos_title':         {'বাংলা': 'সেবার শর্তাবলী',           'English': 'Terms of Service'},
     'tos_last_updated':  {'বাংলা': 'সর্বশেষ আপডেট: জানুয়ারি ২০২৫','English': 'Last updated: January 2025'},
+
     'tos_accept_title':  {'বাংলা': 'গ্রহণযোগ্যতা',            'English': 'Acceptance'},
     'tos_accept_body':   {
-      'বাংলা': 'CSS App ব্যবহার করে আপনি এই শর্তাবলীতে সম্মত হচ্ছেন। আপনি যদি এই শর্তে রাজি না হন, তাহলে অ্যাপটি ব্যবহার বন্ধ করুন।',
-      'English': 'By using CSS App, you agree to these terms. If you disagree, please stop using the app.',
+      'বাংলা': 'CSS App ডাউনলোড বা ব্যবহার করে আপনি এই শর্তাবলীতে আইনগতভাবে সম্মত হচ্ছেন। আপনি যদি কোনো শর্তে দ্বিমত পোষণ করেন, অনুগ্রহ করে অ্যাপটি ব্যবহার বন্ধ করুন এবং আপনার ডিভাইস থেকে মুছে ফেলুন।',
+      'English': 'By downloading or using CSS App, you legally agree to these Terms of Service. If you disagree with any term, please stop using the app and uninstall it from your device.',
     },
+
     'tos_use_title':     {'বাংলা': 'ব্যবহারের নিয়ম',          'English': 'Usage Rules'},
     'tos_use_body':      {
-      'বাংলা': '• অন্যদের প্রতি সম্মানজনক আচরণ করুন\n• মিথ্যা বা ক্ষতিকর তথ্য শেয়ার করবেন না\n• অ্যাপের নিরাপত্তা ক্ষতি করার চেষ্টা করবেন না\n• একাধিক অ্যাকাউন্ট তৈরি করবেন না',
-      'English': '• Be respectful to others\n• Do not share false or harmful content\n• Do not attempt to compromise app security\n• Do not create multiple accounts',
+      'বাংলা': 'অ্যাপ ব্যবহার করার সময় আপনাকে অবশ্যই:\n\n• অন্য ব্যবহারকারীদের প্রতি সম্মানজনক আচরণ করতে হবে\n• মিথ্যা, বিভ্রান্তিকর বা ক্ষতিকর তথ্য পোস্ট করা থেকে বিরত থাকতে হবে\n• অ্যাপের সার্ভার বা কোডবেসে অনুমোদনহীন অ্যাক্সেসের চেষ্টা করা যাবে না\n• একই ব্যক্তির নামে একাধিক অ্যাকাউন্ট তৈরি করা যাবে না\n• স্প্যাম, বট বা স্বয়ংক্রিয় টুল ব্যবহার করা যাবে না\n• বাংলাদেশের প্রচলিত আইন মেনে চলতে হবে',
+      'English': 'While using the app, you must:\n\n• Treat other users with respect\n• Refrain from posting false, misleading, or harmful content\n• Not attempt unauthorized access to the app\'s servers or codebase\n• Not create multiple accounts for the same person\n• Not use spam, bots, or automated tools\n• Comply with applicable laws of Bangladesh',
     },
+
     'tos_account_title': {'বাংলা': 'অ্যাকাউন্ট',              'English': 'Account'},
     'tos_account_body':  {
-      'বাংলা': 'আপনি আপনার অ্যাকাউন্টের নিরাপত্তার জন্য দায়ী। পাসওয়ার্ড গোপন রাখুন এবং সন্দেহজনক কার্যক্রম দেখলে আমাদের জানান।',
-      'English': 'You are responsible for your account security. Keep your password confidential and report suspicious activity.',
+      'বাংলা': 'আপনার অ্যাকাউন্টের সমস্ত কার্যক্রমের দায়িত্ব আপনার। আপনাকে অবশ্যই:\n\n• একটি শক্তিশালী পাসওয়ার্ড ব্যবহার করতে হবে\n• পাসওয়ার্ড কাউকে শেয়ার করা যাবে না\n• সন্দেহজনক কার্যক্রম দেখলে তাৎক্ষণিকভাবে support@cssapp.com-এ জানাতে হবে\n• অ্যাকাউন্ট তৈরির সময় সঠিক তথ্য প্রদান করতে হবে\n\nঅ্যাকাউন্ট হস্তান্তরযোগ্য নয়।',
+      'English': 'You are responsible for all activity on your account. You must:\n\n• Use a strong password\n• Never share your password with anyone\n• Immediately report suspicious activity to consciousstudentsociety@gmail.com\n• Provide accurate information when creating your account\n\nAccounts are non-transferable.',
     },
+
+    'tos_ip_title':      {'বাংলা': 'মেধাস্বত্ব',              'English': 'Intellectual Property'},
+    'tos_ip_body':       {
+      'বাংলা': 'CSS App-এর সকল কন্টেন্ট, ডিজাইন, লোগো, কোড এবং ফিচার আমাদের মেধাস্বত্বের অন্তর্গত। আপনি ব্যক্তিগত ব্যবহারের জন্য অ্যাপটি ব্যবহার করতে পারবেন, কিন্তু:\n\n• অ্যাপের কোনো অংশ কপি, পরিবর্তন বা পুনরায় বিতরণ করা যাবে না\n• রিভার্স ইঞ্জিনিয়ারিং বা ডিকম্পাইল করা নিষিদ্ধ',
+      'English': 'All content, design, logos, code, and features of CSS App are our intellectual property. You may use the app for personal use, but:\n\n• No part of the app may be copied, modified, or redistributed\n• Reverse engineering or decompiling is strictly prohibited',
+    },
+
+    'tos_liability_title':{'বাংলা': 'দায়বদ্ধতার সীমা',        'English': 'Limitation of Liability'},
+    'tos_liability_body': {
+      'বাংলা': 'CSS App "যেমন আছে" ভিত্তিতে প্রদান করা হয়। আমরা নিশ্চিত করতে পারি না যে অ্যাপটি সবসময় নিরবচ্ছিন্নভাবে কাজ করবে। কোনো তথ্য হারানো বা সেবা বিঘ্নের ফলে সৃষ্ট ক্ষতির জন্য আমরা দায়ী নই। আপনার গুরুত্বপূর্ণ তথ্যের ব্যাকআপ রাখার দায়িত্ব আপনার।',
+      'English': 'CSS App is provided on an "as is" basis. We cannot guarantee uninterrupted service at all times. We are not liable for any loss of data or damages resulting from service interruption. You are responsible for maintaining backups of any important information.',
+    },
+
     'tos_terminate_title':{'বাংলা': 'অ্যাকাউন্ট বন্ধ',        'English': 'Termination'},
     'tos_terminate_body': {
-      'বাংলা': 'শর্তাবলী লঙ্ঘন করলে আমরা বিনা নোটিশে অ্যাকাউন্ট বন্ধ করার অধিকার রাখি।',
-      'English': 'We reserve the right to terminate accounts without notice for violations of these terms.',
+      'বাংলা': 'নিচের যেকোনো কারণে আমরা বিনা নোটিশে আপনার অ্যাকাউন্ট স্থগিত বা স্থায়ীভাবে বন্ধ করতে পারি:\n\n• এই শর্তাবলীর গুরুতর লঙ্ঘন\n• অন্য ব্যবহারকারীদের ক্ষতি করার প্রচেষ্টা\n• জালিয়াতি বা প্রতারণামূলক কার্যক্রম\n• আদালত বা আইনি কর্তৃপক্ষের নির্দেশ\n\nআপনিও যেকোনো সময় নিজে অ্যাকাউন্ট মুছে ফেলতে পারবেন।',
+      'English': 'We may suspend or permanently terminate your account without notice for any of the following:\n\n• Serious violation of these Terms\n• Attempting to harm other users\n• Fraudulent or deceptive activity\n• Direction from a court or legal authority\n\nYou may also delete your own account at any time.',
     },
+
     'tos_changes_title': {'বাংলা': 'পরিবর্তন',                'English': 'Changes'},
     'tos_changes_body':  {
-      'বাংলা': 'আমরা যেকোনো সময় এই শর্তাবলী পরিবর্তন করতে পারি। পরিবর্তনের পর অ্যাপ ব্যবহার অব্যাহত রাখলে আপনি নতুন শর্তে সম্মত বলে গণ্য হবেন।',
-      'English': 'We may update these terms at any time. Continued use of the app after changes constitutes acceptance.',
+      'বাংলা': 'আমরা যেকোনো সময় এই শর্তাবলী আপডেট করতে পারি। উল্লেখযোগ্য পরিবর্তনের ক্ষেত্রে আমরা অ্যাপের মাধ্যমে বা ইমেইলে আপনাকে অবহিত করার চেষ্টা করব। পরিবর্তনের পরেও অ্যাপ ব্যবহার অব্যাহত রাখলে আপনি নতুন শর্তে সম্মত বলে গণ্য হবেন।',
+      'English': 'We may update these Terms at any time. For significant changes, we will try to notify you via the app or by email. Continued use of the app after changes constitutes your acceptance of the updated Terms.',
+    },
+
+    'tos_governing_title':{'বাংলা': 'প্রযোজ্য আইন',           'English': 'Governing Law'},
+    'tos_governing_body': {
+      'বাংলা': 'এই শর্তাবলী বাংলাদেশের প্রচলিত আইন অনুযায়ী পরিচালিত হবে। যেকোনো বিরোধ বাংলাদেশের উপযুক্ত আদালতে নিষ্পত্তি করা হবে।',
+      'English': 'These Terms are governed by the laws of Bangladesh. Any disputes will be resolved in the appropriate courts of Bangladesh.',
     },
 
 
@@ -1735,6 +1784,41 @@ class SC {
     'event_created':          {'বাংলা': 'নতুন ইভেন্ট',                  'English': 'New Event'},
     'event_created_body':     {'বাংলা': 'একটি নতুন ইভেন্ট তৈরি হয়েছে', 'English': 'A new event has been created'},
     'general':                {'বাংলা': 'নোটিফিকেশন',                   'English': 'Notification'},
+
+
+    'appearance_title':    {'বাংলা': 'অ্যাপিয়ারেন্স',                    'English': 'Appearance'},
+    'theme_section':       {'বাংলা': 'থিম',                               'English': 'Theme'},
+    'dark_mode_label':     {'বাংলা': 'ডার্ক মোড',                        'English': 'Dark Mode'},
+    'dark_mode_sub':       {'বাংলা': 'কম আলোতে চোখের আরাম',              'English': 'Easy on eyes in low light'},
+    'light_mode_label':    {'বাংলা': 'লাইট মোড',                         'English': 'Light Mode'},
+    'light_mode_sub':      {'বাংলা': 'উজ্জ্বল পরিবেশের জন্য',            'English': 'For bright environments'},
+    'theme_set_msg':       {'বাংলা': 'থিম সেট হয়েছে ✓',                  'English': 'Theme applied ✓'},
+    'appearance_info':     {'বাংলা': 'থিম পরিবর্তন তাৎক্ষণিকভাবে প্রযোজ্য হবে।', 'English': 'Theme changes take effect immediately.'},
+
+    'current_visibility':    {'বাংলা': 'বর্তমান অবস্থা',                   'English': 'Current Status'},
+    'private_profile':       {'বাংলা': 'প্রাইভেট প্রোফাইল',                'English': 'Private Profile'},
+    'private_profile_desc':  {'বাংলা': '{name}-এর প্রোফাইল প্রাইভেট করা আছে। শুধুমাত্র তিনি নিজে দেখতে পারবেন।', 'English': '{name} has set their profile to private. Only they can view it.'},
+
+    'faq_search_hint':    {'বাংলা': 'প্রশ্ন খুঁজুন...', 'English': 'Search FAQs...'},
+    'faq_no_result':      {'বাངলা': 'কোনো ফলাফল পাওয়া যায়নি', 'English': 'No results found'},
+    'faq_no_result_sub':  {'বাংলা': 'অন্য কিছু দিয়ে খোঁজার চেষ্টা করুন', 'English': 'Try searching something else'},
+    'stat_faq':           {'বাংলা': 'প্রশ্নোত্তর', 'English': 'FAQ Items'},
+    'stat_response':      {'বাংলা': 'রেসপন্স টাইম', 'English': 'Response'},
+    'stat_contact':       {'বাংলা': 'যোগাযোগ মাধ্যম', 'English': 'Contact Ways'},
+    'contact_section':    {'বাংলা': 'যোগাযোগ করুন', 'English': 'Contact Us'},
+    'faq_section':        {'বাংলা': 'প্রায়ই জিজ্ঞাসিত', 'English': 'FAQs'},
+    'chat_soon_sub':      {'বাংলা': 'শীঘ্রই আসছে', 'English': 'Coming Soon'},
+    'direct_reply':       {'বাংলা': 'সরাসরি উত্তর', 'English': 'Direct Reply'},
+    'faq_q1':             {'বাংলা': 'রক্ত দান কীভাবে করব?', 'English': 'How to donate blood?'},
+    'faq_a1':             {'বাংলা': 'Blood Groups সেকশনে গিয়ে আপনার ব্লাড গ্রুপ অনুযায়ী ম্যাচিং ডোনার খুঁজুন এবং সরাসরি যোগাযোগ করুন। প্রোফাইলে আপনার তথ্য আপডেট রাখুন যাতে অন্যরাও আপনাকে খুঁজে পেতে পারে।', 'English': 'Go to the Blood Groups section and find a matching donor based on your blood type. Keep your profile updated so others can find you as a donor too.'},
+    'faq_q2':             {'বাংলা': 'প্রোফাইল কীভাবে আপডেট করব?', 'English': 'How to update my profile?'},
+    'faq_a2':             {'বাংলা': 'Settings মেনুতে যান, তারপর Profile অপশনে ট্যাপ করুন। সেখান থেকে আপনার নাম, ছবি, ব্লাড গ্রুপ এবং যোগাযোগের তথ্য সম্পাদনা করতে পারবেন।', 'English': 'Go to Settings, then tap on Profile. From there you can edit your name, photo, blood group, and contact information.'},
+    'faq_q3':             {'বাংলা': 'পাসওয়ার্ড ভুলে গেলে কী করব?', 'English': 'What to do if I forgot my password?'},
+    'faq_a3':             {'বাংলা': 'লগইন স্ক্রিনে "পাসওয়ার্ড ভুলে গেছি" অপশনটি ট্যাপ করুন। আপনার নিবন্ধিত ইমেইলে একটি রিসেট লিংক পাঠানো হবে।', 'English': 'Tap the "Forgot Password" option on the login screen. A password reset link will be sent to your registered email.'},
+    'faq_q4':             {'বাংলা': 'অ্যাকাউন্ট ডিলিট করব কীভাবে?', 'English': 'How to delete my account?'},
+    'faq_a4':             {'বাংলা': 'Settings > Account > Delete Account পাথ অনুসরণ করুন। অ্যাকাউন্ট ডিলিট করলে সমস্ত ডেটা স্থায়ীভাবে মুছে যাবে।', 'English': 'Navigate to Settings > Account > Delete Account. Deleting your account will permanently remove all your data.'},
+
+    'help_hero_title':    {'বাংলা': 'আমরা কীভাবে\nসাহায্য করতে পারি?', 'English': 'How Can We\nHelp You?'},
 
 
 

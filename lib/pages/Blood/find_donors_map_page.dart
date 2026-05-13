@@ -245,10 +245,12 @@ class _FindDonorsMapPageState extends State<FindDonorsMapPage>
                 onTap: (_, point) => setState(() => _userLoc = point),
               ),
               children: [
+                // Voyager — Google Maps এর মতো colorful ⭐
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.yourapp.blooddonor',
-                  maxZoom: 19,
+                  urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  subdomains: const ['a', 'b', 'c'],
+                  userAgentPackageName: 'com.example.css',
+                  maxNativeZoom: 19,
                 ),
                 MarkerLayer(markers: [
                   Marker(
