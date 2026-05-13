@@ -104,10 +104,11 @@ class _AiChatPopupState extends State<AiChatPopup>
   }
 
   // ── Knowledge loading ─────────────────────────────────────────────────────
+  // FIX: forceRefresh সরানো হয়েছে — cache valid থাকলে Supabase hit হবে না
+  //      ফলে chat open করলে extra API call হবে না এবং দ্রুত load হবে
   Future<void> _initKnowledge() async {
-    if (GeminiService.isKnowledgeLoaded) return;
     if (mounted) setState(() => _isLoadingKnowledge = true);
-    await GeminiService.loadKnowledge();
+    await GeminiService.loadKnowledge(); // forceRefresh নেই = cache use করবে
     if (mounted) setState(() => _isLoadingKnowledge = false);
   }
 
@@ -197,15 +198,17 @@ class _AiChatPopupState extends State<AiChatPopup>
     });
   }
 
+  // FIX: _clearChat-এ শুধু history clear হবে, knowledge refresh হবে না
+  //      শুধু admin panel থেকে content update হলে refreshKnowledge() call করো
   void _clearChat() {
     HapticFeedback.mediumImpact();
     GeminiService.clearHistory();
     setState(() {
       _messages.clear();
       _messages.add(_ChatMessage(
-        text:   'চ্যাট পরিষ্কার করা হয়েছে। আবার জিজ্ঞেস করুন! 😊',
+        text: 'চ্যাট clear করা হয়েছে। আবার জিজ্ঞেস করুন! 😊',
         isUser: false,
-        time:   DateTime.now(),
+        time: DateTime.now(),
       ));
     });
   }

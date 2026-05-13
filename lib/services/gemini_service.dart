@@ -21,13 +21,17 @@ class GeminiService {
   static const int _maxHistoryTurns = 6;
 
   // ── Knowledge ─────────────────────────────────────────────────────────────
-  static String _knowledgeBase   = '';
-  static bool   _knowledgeLoaded = false;
+  static String _knowledgeBase    = '';
+  static bool   _knowledgeLoaded  = false;
   static bool get isKnowledgeLoaded => _knowledgeLoaded;
 
-  // ── Cooldown ───────────────────────────────────────────────────────────────
+  // ── Rate limit / cooldown ──────────────────────────────────────────────────
+  // Groq free tier: ~30 req/min. 35s cooldown prevents 429 errors.
   static DateTime? _lastRequestTime;
-  static const int _cooldownSeconds = 2;
+  static const int _cooldownSeconds = 5;
+
+  // 429 হলে retry-after সময় পর্যন্ত block করা
+  static DateTime? _rateLimitUntil;
 
   // ── Base system prompt ─────────────────────────────────────────────────────
   static const String _basePrompt =
@@ -39,14 +43,16 @@ class GeminiService {
       'Password বা OTP কখনো চাইবে না।\n';
 
   // ══════════════════════════════════════════════════════════════════════════
-  // Knowledge load — app start বা chat open-এ একবার call করো
+  // Knowledge load
   // ══════════════════════════════════════════════════════════════════════════
+
+  /// Chat open হলে এটা call করো — forceRefresh ছাড়া।
+  /// Cache valid থাকলে Supabase hit করবে না, তাই fast।
   static Future<void> loadKnowledge({bool forceRefresh = false}) async {
     if (_knowledgeLoaded && !forceRefresh) return;
 
     final prefs = await SharedPreferences.getInstance();
 
-    // Cache valid কিনা চেক করো
     if (!forceRefresh) {
       final cachedTime  = prefs.getInt(_cacheTimeKey) ?? 0;
       final hoursPassed = (DateTime.now().millisecondsSinceEpoch - cachedTime)
@@ -62,7 +68,6 @@ class GeminiService {
       }
     }
 
-    // Supabase থেকে fetch
     try {
       final rows = await Supabase.instance.client
           .from('ai_knowledge')
@@ -83,12 +88,10 @@ class GeminiService {
       _knowledgeLoaded = true;
 
       await prefs.setString(_cacheKey, _knowledgeBase);
-      await prefs.setInt(
-          _cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
-    } catch (_) {
-      // Supabase fail → cache ব্যবহার করো
+      await prefs.setInt(_cacheTimeKey, DateTime.now().millisecondsSinceEpoch);
+    } catch (e) {
       final cached = prefs.getString(_cacheKey);
-      _knowledgeBase  = cached?.isNotEmpty == true
+      _knowledgeBase = cached?.isNotEmpty == true
           ? cached!
           : 'CSS App: Conscious Student Society Bangladesh.\nEmail: consciousstudentsociety@gmail.com';
       _knowledgeLoaded = true;
@@ -104,16 +107,23 @@ class GeminiService {
       return '❌ API Key সেট করা হয়নি। Developer-কে জানান।';
     }
 
-    // Cooldown
+    // ── Rate limit block চেক (429 পেলে set হয়) ────────────────────────────
+    if (_rateLimitUntil != null && DateTime.now().isBefore(_rateLimitUntil!)) {
+      final remaining = _rateLimitUntil!.difference(DateTime.now()).inSeconds;
+      return '⏳ $remaining সেকেন্ড অপেক্ষা করো, তারপর আবার চেষ্টা করো।';
+    }
+
+    // ── Cooldown চেক ────────────────────────────────────────────────────────
     if (_lastRequestTime != null) {
       final diff = DateTime.now().difference(_lastRequestTime!).inSeconds;
       if (diff < _cooldownSeconds) {
-        return '⏳ ${_cooldownSeconds - diff} সেকেন্ড অপেক্ষা করো!';
+        final wait = _cooldownSeconds - diff;
+        return '⏳ $wait সেকেন্ড অপেক্ষা করো!';
       }
     }
     _lastRequestTime = DateTime.now();
 
-    // Knowledge load (না থাকলে)
+    // ── Knowledge load (না থাকলে) ────────────────────────────────────────
     if (!_knowledgeLoaded) await loadKnowledge();
 
     _history.add({'role': 'user', 'content': userMessage});
@@ -157,30 +167,45 @@ class GeminiService {
       _removeLastUserMessage();
 
       switch (response.statusCode) {
-        case 401:  return '❌ API Key ভুল। Developer-কে জানান।';
+        case 401:
+          return '❌ API Key ভুল। Developer-কে জানান।';
+
         case 413:
           clearHistory();
           return '❌ বেশি তথ্য হয়ে গেছে। চ্যাট clear করে আবার চেষ্টা করো।';
-        case 429:  return '⏳ লিমিট শেষ। ৩০ সেকেন্ড পরে আবার চেষ্টা করো।';
+
+        case 429:
+        // Groq থেকে retry-after header পড়া
+          final retryAfterStr = response.headers['retry-after'];
+          final retrySeconds  = int.tryParse(retryAfterStr ?? '') ?? 60;
+          _rateLimitUntil = DateTime.now().add(Duration(seconds: retrySeconds));
+          return '⏳ $retrySeconds সেকেন্ড পরে আবার চেষ্টা করো।';
+
         case 500:
-        case 503:  return 'Server সাময়িকভাবে বন্ধ আছে। একটু পরে চেষ্টা করো।';
-        default:   return 'সংযোগে সমস্যা হয়েছে। (${response.statusCode})';
+        case 503:
+          return '🔧 Server সাময়িকভাবে বন্ধ আছে। একটু পরে চেষ্টা করো।';
+
+        default:
+          return '⚠️ সংযোগে সমস্যা হয়েছে। (${response.statusCode})';
       }
     } on TimeoutException {
       _removeLastUserMessage();
-      return 'সময় শেষ হয়ে গেছে। Internet চেক করুন।';
+      return '⏱️ সময় শেষ হয়ে গেছে। Internet চেক করুন।';
     } catch (e) {
       _removeLastUserMessage();
       if (e.toString().contains('SocketException')) {
-        return 'Internet নেই। নেট চালু করে চেষ্টা করুন।';
+        return '📶 Internet নেই। নেট চালু করে চেষ্টা করুন।';
       }
-      return 'সংযোগে সমস্যা হয়েছে। আবার চেষ্টা করুন।';
+      return '⚠️ সংযোগে সমস্যা হয়েছে। আবার চেষ্টা করুন।';
     }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // Helpers
   // ══════════════════════════════════════════════════════════════════════════
+
+  /// শুধু admin panel থেকে knowledge update হলে call করো।
+  /// সাধারণ chat open-এ এটা call করবে না।
   static Future<void> refreshKnowledge() async {
     _knowledgeLoaded = false;
     await loadKnowledge(forceRefresh: true);

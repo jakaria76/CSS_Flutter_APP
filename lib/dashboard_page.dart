@@ -42,6 +42,9 @@ import '../widgets/dashboard/about_summary_section_widget.dart';
 // ── AI Chat Popup ──────────────────────────────────────────────────────────
 import 'package:css/widgets/ai_chat_popup.dart';
 
+// ── Loading Screen ─────────────────────────────────────────────────────────
+import 'package:css/widgets/loading_screen.dart';
+
 // Pages
 import 'package:css/pages/NoticePage/notice_page.dart';
 import 'package:css/pages/Events/events_list_page.dart';
@@ -161,6 +164,11 @@ class _DashboardPageState extends State<DashboardPage>
   // ── AI button animation ────────────────────────────────────────────────────
   late AnimationController _aiGlowController;
 
+  // ── Loading screen → dashboard fade out/in ────────────────────────────────
+  late AnimationController _loadingFadeController;
+  late Animation<double>   _loadingFadeOut; // loading screen fade out
+  late Animation<double>   _dashboardFadeIn; // dashboard fade in
+
   // ─── Lifecycle ────────────────────────────────────────────────────────────
   @override
   void initState() {
@@ -182,17 +190,38 @@ class _DashboardPageState extends State<DashboardPage>
       duration: const Duration(milliseconds: 400),
     );
 
-    // AI button glow animation
     _aiGlowController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
+
+    // Loading screen transition:
+    // 0.0→0.5 = loading screen fade out
+    // 0.5→1.0 = dashboard fade in
+    _loadingFadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _loadingFadeOut = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _loadingFadeController,
+        curve: const Interval(0.0, 0.55, curve: Curves.easeIn),
+      ),
+    );
+    _dashboardFadeIn = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _loadingFadeController,
+        curve: const Interval(0.45, 1.0, curve: Curves.easeOut),
+      ),
+    );
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _initConnectivity();
       await _loadCachedDataFirst();
       if (mounted) {
         setState(() => _initialLoadDone = true);
+        // Loading screen fade out → dashboard fade in
+        await _loadingFadeController.forward();
         _fadeController.forward(from: 0);
       }
       _loadDashboardData(showFadeAnimation: false);
@@ -206,6 +235,7 @@ class _DashboardPageState extends State<DashboardPage>
     _emergencyPulseController.dispose();
     _offlineBannerController.dispose();
     _aiGlowController.dispose();
+    _loadingFadeController.dispose();
     super.dispose();
   }
 
@@ -267,12 +297,12 @@ class _DashboardPageState extends State<DashboardPage>
   Future<void> _loadCachedDataFirst() async {
     final prefs = await SharedPreferences.getInstance();
 
-    List<Notice>               notices    = [];
-    List<Map<String, dynamic>> upcoming   = [];
-    List<Map<String, dynamic>> past       = [];
-    int                        total      = 0;
-    int                        ready      = 0;
-    List<Map<String, dynamic>> emergency  = [];
+    List<Notice>               notices   = [];
+    List<Map<String, dynamic>> upcoming  = [];
+    List<Map<String, dynamic>> past      = [];
+    int                        total     = 0;
+    int                        ready     = 0;
+    List<Map<String, dynamic>> emergency = [];
     AboutOverview?             ov;
 
     final cachedNotices = prefs.getString(_kCacheNotices);
@@ -322,11 +352,11 @@ class _DashboardPageState extends State<DashboardPage>
         _emergencyRequests = emergency;
         overview           = ov;
 
-        if (notices.isNotEmpty)  _isLoadingNotices    = false;
+        if (notices.isNotEmpty)               _isLoadingNotices    = false;
         if (upcoming.isNotEmpty || past.isNotEmpty) _isLoadingEvents = false;
-        if (total > 0)           _isLoadingBloodStats = false;
-        if (emergency.isNotEmpty) _isLoadingEmergency = false;
-        if (ov != null)          _isLoadingAboutData  = false;
+        if (total > 0)                         _isLoadingBloodStats = false;
+        if (emergency.isNotEmpty)              _isLoadingEmergency  = false;
+        if (ov != null)                        _isLoadingAboutData  = false;
       });
     }
   }
@@ -419,9 +449,9 @@ class _DashboardPageState extends State<DashboardPage>
             _posIndex(a.previousPosition ?? a.committeePosition)
                 .compareTo(_posIndex(b.previousPosition ?? b.committeePosition)));
       if (mounted) setState(() {
-        _leaders       = leaders;
-        _advisors      = advisors;
-        _pastCommittee = pastCommittee;
+        _leaders          = leaders;
+        _advisors         = advisors;
+        _pastCommittee    = pastCommittee;
         _isLoadingMembers = false;
       });
     } catch (e) {
@@ -453,7 +483,7 @@ class _DashboardPageState extends State<DashboardPage>
     try {
       final images = await _galleryService.fetchGallery();
       if (mounted) setState(() {
-        _recentImages    = images.take(6).toList();
+        _recentImages     = images.take(6).toList();
         _isLoadingGallery = false;
       });
     } catch (e) {
@@ -567,32 +597,32 @@ class _DashboardPageState extends State<DashboardPage>
       context,
       MaterialPageRoute(
         builder: (_) => PersonDetailsPage(
-          category: categoryName,
-          heroTag: heroTag,
-          name: person.fullName ?? 'Member',
-          role: person.committeePosition ??
+          category:            categoryName,
+          heroTag:             heroTag,
+          name:                person.fullName ?? 'Member',
+          role:                person.committeePosition ??
               person.previousPosition ??
               person.designation ?? 'Member',
-          imageUrl: imageUrl,
-          message: person.presentCommitteeNote ??
+          imageUrl:            imageUrl,
+          message:             person.presentCommitteeNote ??
               person.advisorNote ?? person.previousCommitteeNote,
-          bio: person.shortBio,
-          presentAddress: person.presentAddress,
-          bloodGroup: person.bloodGroup,
-          locationDms: person.locationDms,
-          schoolName: person.schoolName,
-          schoolGroup: person.schoolGroup,
-          schoolPassingYear: person.schoolPassingYear,
-          collegeName: person.collegeName,
-          collegeGroup: person.collegeGroup,
-          collegePassingYear: person.collegePassingYear,
-          universityName: person.universityName,
-          department: person.department,
-          currentYear: person.currentYear,
-          currentSemester: person.currentSemester,
-          themeColor: color,
-          visibility: person.visibility ?? 'public',
-          isOwner: currentUserId == person.id,
+          bio:                 person.shortBio,
+          presentAddress:      person.presentAddress,
+          bloodGroup:          person.bloodGroup,
+          locationDms:         person.locationDms,
+          schoolName:          person.schoolName,
+          schoolGroup:         person.schoolGroup,
+          schoolPassingYear:   person.schoolPassingYear,
+          collegeName:         person.collegeName,
+          collegeGroup:        person.collegeGroup,
+          collegePassingYear:  person.collegePassingYear,
+          universityName:      person.universityName,
+          department:          person.department,
+          currentYear:         person.currentYear,
+          currentSemester:     person.currentSemester,
+          themeColor:          color,
+          visibility:          person.visibility ?? 'public',
+          isOwner:             currentUserId == person.id,
         ),
       ),
     );
@@ -644,52 +674,70 @@ class _DashboardPageState extends State<DashboardPage>
       value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: Scaffold(
         backgroundColor: bgColor,
-
-        // ── AI Floating Button ─────────────────────────────────────────────
-        floatingActionButton: _buildAiFloatingButton(isDark),
+        floatingActionButton: _initialLoadDone
+            ? _buildAiFloatingButton(isDark)
+            : null, // loading screen-এ FAB লুকানো
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
 
-        body: SafeArea(
-          child: Stack(
-            children: [
-              if (isDark) const BackgroundOrbs(),
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
 
-              Column(
-                children: [
-                  // ── Offline Banner ─────────────────────────────────────
-                  OfflineBannerWidget(
-                    controller: _offlineBannerController,
-                    onRetry:    _loadDashboardData,
-                  ),
-
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh:       _onRefresh,
-                      color:           accentCol,
-                      backgroundColor: isDark
-                          ? const Color(0xFF203A43)
-                          : Colors.white,
-                      child: CustomScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(
-                          parent: BouncingScrollPhysics(),
+            // ════════════════════════════════════════════════════════════
+            // LAYER 1 — Dashboard (নিচে থাকে)
+            // ════════════════════════════════════════════════════════════
+            FadeTransition(
+              opacity: _dashboardFadeIn,
+              child: SafeArea(
+                child: Stack(
+                  children: [
+                    if (isDark) const BackgroundOrbs(),
+                    Column(
+                      children: [
+                        OfflineBannerWidget(
+                          controller: _offlineBannerController,
+                          onRetry:    _loadDashboardData,
                         ),
-                        slivers: [
-                          SliverToBoxAdapter(
-                            child: FadeTransition(
-                              opacity: _fadeController,
-                              child: _initialLoadDone
-                                  ? _buildContent(isDark, accentCol)
-                                  : const SizedBox.shrink(),
+                        Expanded(
+                          child: RefreshIndicator(
+                            onRefresh:       _onRefresh,
+                            color:           accentCol,
+                            backgroundColor: isDark
+                                ? const Color(0xFF203A43)
+                                : Colors.white,
+                            child: CustomScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(
+                                parent: BouncingScrollPhysics(),
+                              ),
+                              slivers: [
+                                SliverToBoxAdapter(
+                                  child: FadeTransition(
+                                    opacity: _fadeController,
+                                    child: _initialLoadDone
+                                        ? _buildContent(isDark, accentCol)
+                                        : const SizedBox.shrink(),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ],
-          ),
+            ),
+
+            // ════════════════════════════════════════════════════════════
+            // LAYER 2 — Loading Screen (উপরে থাকে, data এলে fade out)
+            // ════════════════════════════════════════════════════════════
+            if (!_initialLoadDone || _loadingFadeController.value < 1.0)
+              FadeTransition(
+                opacity: _loadingFadeOut,
+                child: const CssLoadingScreen(),
+              ),
+          ],
         ),
       ),
     );
@@ -701,15 +749,13 @@ class _DashboardPageState extends State<DashboardPage>
       animation: _aiGlowController,
       builder: (context, child) {
         final glowOpacity = 0.3 + (_aiGlowController.value * 0.4);
-
         return GestureDetector(
           onTap: () {
             HapticFeedback.mediumImpact();
             AiChatPopup.show(context);
           },
           child: Container(
-            width: 58,
-            height: 58,
+            width: 58, height: 58,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: const LinearGradient(
@@ -733,12 +779,10 @@ class _DashboardPageState extends State<DashboardPage>
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // ── Circular image with fallback ──────────────────────────
                 ClipOval(
                   child: Image.asset(
                     'assets/images/css_chat_icon.png',
-                    width: 58,
-                    height: 58,
+                    width: 58, height: 58,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => const Icon(
                       Icons.auto_awesome_rounded,
@@ -747,8 +791,6 @@ class _DashboardPageState extends State<DashboardPage>
                     ),
                   ),
                 ),
-
-                // ── Pulse ring ────────────────────────────────────────────
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -760,24 +802,19 @@ class _DashboardPageState extends State<DashboardPage>
                     ),
                   ),
                 ),
-
-                // ── Animated outer glow ring ──────────────────────────────
                 Positioned.fill(
                   child: AnimatedBuilder(
                     animation: _aiGlowController,
-                    builder: (_, __) {
-                      return DecoratedBox(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.cyanAccent.withValues(
-                              alpha: _aiGlowController.value * 0.5,
-                            ),
-                            width: 2,
-                          ),
+                    builder: (_, __) => DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.cyanAccent.withValues(
+                              alpha: _aiGlowController.value * 0.5),
+                          width: 2,
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -794,10 +831,7 @@ class _DashboardPageState extends State<DashboardPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (!_isLoadingBanners && _banners.isNotEmpty)
-          BannerSection(
-            isLoading: false,
-            banners:   _banners,
-          ),
+          BannerSection(isLoading: false, banners: _banners),
 
         if (_recentNotices.isNotEmpty)
           NoticeSection(
@@ -847,10 +881,7 @@ class _DashboardPageState extends State<DashboardPage>
           ),
 
         if (!_isLoadingAboutData && overview != null)
-          AboutSummarySectionWidget(
-            isDark:   isDark,
-            overview: overview,
-          ),
+          AboutSummarySectionWidget(isDark: isDark, overview: overview),
 
         if (!_isLoadingMembers) ...[
           if (_leaders.isNotEmpty)
@@ -905,7 +936,6 @@ class _DashboardPageState extends State<DashboardPage>
         const SizedBox(height: 0),
 
         FooterSection(contactInfo: _contactInfo),
-        // Extra padding so content not hidden behind FAB
         const SizedBox(height: 80),
       ],
     );

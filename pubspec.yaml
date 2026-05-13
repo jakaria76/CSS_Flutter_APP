@@ -114,6 +114,7 @@ flutter:
     - assets/images/google.png
     - assets/images/csslogo.jpg
     - assets/images/css_chat_icon.png
+    - assets/images/css_loading_screen.png
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see
