@@ -48,6 +48,8 @@ import 'package:css/pages/Banner/banner_management_page.dart';
 
 import 'package:css/pages/SettingsPage/settings_page.dart';
 
+import 'package:css/pages/Constitution/constitution_page.dart';
+import 'package:css/pages/Constitution/manage_constitution_page.dart';
 class MemberHome extends StatefulWidget {
   final bool isGuest;
   const MemberHome({super.key, required this.isGuest});
@@ -153,6 +155,8 @@ class _MemberHomeState extends State<MemberHome> with TickerProviderStateMixin {
           case 29: nextRoute = const BannerManagementPage(); break;
           case 30: nextRoute = const SettingsPage(); break;
           case 31: nextRoute = const MemberManagementPage(); break;
+          case 32: nextRoute = const ConstitutionPage(); break;
+          case 33: nextRoute = const ManageConstitutionPage(); break;
           default: return;
         }
 

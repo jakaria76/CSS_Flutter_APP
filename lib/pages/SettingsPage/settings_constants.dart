@@ -1392,6 +1392,8 @@ class SC {
     'about_css': {'বাংলা': 'সিএসএস সম্পর্কে', 'English': 'About CSS'},
     'my_opinions': {'বাংলা': 'আমার মতামত', 'English': 'My Opinions'},
     'manage_notices': {'বাংলা': 'বিজ্ঞপ্তি ব্যবস্থাপনা', 'English': 'Manage Notices'},
+    'Constitution': {'বাংলা': 'Constitution', 'English': 'Constitution'},
+    'Manage_Constitution': {'বাংলা': 'Manage_Constitution', 'English': 'Manage_Constitution'},
     'manage_committee': {'বাংলা': 'কমিটি ব্যবস্থাপনা', 'English': 'Manage Committee'},
     'manage_prev_members': {'বাংলা': 'অতীত সদস্য ব্যবস্থাপনা', 'English': 'Manage Previous Members'},
     'manage_advisors': {'বাংলা': 'উপদেষ্টা ব্যবস্থাপনা', 'English': 'Manage Advisors'},

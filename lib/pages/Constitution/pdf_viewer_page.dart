@@ -4,31 +4,30 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:css/pages/SettingsPage/settings_constants.dart';
 
-class NoticePdfViewer extends StatefulWidget {
+class PdfViewerPage extends StatefulWidget {
   final String pdfUrl;
-  final String originalUrl;
+  final String title;
 
-  const NoticePdfViewer({
+  const PdfViewerPage({
     super.key,
     required this.pdfUrl,
-    required this.originalUrl,
+    required this.title,
   });
 
   @override
-  State<NoticePdfViewer> createState() => _NoticePdfViewerState();
+  State<PdfViewerPage> createState() => _PdfViewerPageState();
 }
 
-class _NoticePdfViewerState extends State<NoticePdfViewer> {
+class _PdfViewerPageState extends State<PdfViewerPage> {
   final PdfViewerController _pdfCtrl = PdfViewerController();
 
-  bool    _isLoading        = true;
-  bool    _hasError         = false;
+  bool    _isLoading       = true;
+  bool    _hasError        = false;
   double  _downloadProgress = 0;
-  int     _totalPages       = 0;
-  int     _currentPage      = 1;
+  int     _totalPages      = 0;
+  int     _currentPage     = 1;
   File?   _localFile;
 
   @override
@@ -49,11 +48,10 @@ class _NoticePdfViewerState extends State<NoticePdfViewer> {
       _isLoading        = true;
       _hasError         = false;
       _downloadProgress = 0;
-      _localFile        = null;
     });
 
     try {
-      final request = http.Request('GET', Uri.parse(widget.pdfUrl));
+      final request  = http.Request('GET', Uri.parse(widget.pdfUrl));
       request.headers.addAll({
         'Accept'    : 'application/pdf,application/octet-stream,*/*',
         'User-Agent': 'Mozilla/5.0 FlutterApp',
@@ -86,12 +84,12 @@ class _NoticePdfViewerState extends State<NoticePdfViewer> {
           bytes[1] != 0x50 ||
           bytes[2] != 0x44 ||
           bytes[3] != 0x46) {
-        throw Exception('Not a valid PDF');
+        throw Exception('Not a valid PDF file');
       }
 
       final dir  = await getTemporaryDirectory();
       final file = File(
-          '${dir.path}/notice_${DateTime.now().millisecondsSinceEpoch}.pdf');
+          '${dir.path}/pdf_${DateTime.now().millisecondsSinceEpoch}.pdf');
       await file.writeAsBytes(bytes, flush: true);
 
       if (mounted) setState(() {
@@ -99,7 +97,7 @@ class _NoticePdfViewerState extends State<NoticePdfViewer> {
         _isLoading = false;
       });
     } catch (e) {
-      debugPrint('NoticePdfViewer download error: $e');
+      debugPrint('PDF download error: $e');
       if (mounted) setState(() {
         _isLoading = false;
         _hasError  = true;
@@ -107,24 +105,12 @@ class _NoticePdfViewerState extends State<NoticePdfViewer> {
     }
   }
 
-  Future<void> _openInBrowser() async {
-    try {
-      final uri = Uri.parse(widget.originalUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (_) {}
-  }
-
   // ── Build ──────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: SC.themeModeNotifier,
-      builder: (_, __, ___) => ValueListenableBuilder<String>(
-        valueListenable: SC.languageNotifier,
-        builder: (_, __, ___) => _buildPage(),
-      ),
+      builder: (_, __, ___) => _buildPage(),
     );
   }
 
@@ -169,12 +155,14 @@ class _NoticePdfViewerState extends State<NoticePdfViewer> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                SC.tr('noticePdfViewer'),
+                widget.title,
                 style: TextStyle(
                   color: textColor,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
               if (_totalPages > 0)
                 Text(
@@ -188,39 +176,17 @@ class _NoticePdfViewerState extends State<NoticePdfViewer> {
             ],
           ),
           actions: [
-            // Zoom out
             IconButton(
               onPressed: () => _pdfCtrl.zoomLevel =
                   (_pdfCtrl.zoomLevel - 0.25).clamp(0.75, 4.0),
               icon: Icon(Icons.zoom_out_rounded, color: accent, size: 22),
             ),
-            // Zoom in
             IconButton(
               onPressed: () => _pdfCtrl.zoomLevel =
                   (_pdfCtrl.zoomLevel + 0.25).clamp(0.75, 4.0),
               icon: Icon(Icons.zoom_in_rounded, color: accent, size: 22),
             ),
-            // Open in browser
-            GestureDetector(
-              onTap: _openInBrowser,
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(0, 10, 10, 10),
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.07)
-                      : Colors.black.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.10)
-                        : Colors.black.withValues(alpha: 0.08),
-                  ),
-                ),
-                child: Icon(Icons.open_in_new_rounded,
-                    color: accent, size: 16),
-              ),
-            ),
+            const SizedBox(width: 4),
           ],
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(2),
@@ -305,7 +271,7 @@ class _NoticePdfViewerState extends State<NoticePdfViewer> {
             Text(
               _downloadProgress > 0
                   ? 'ডাউনলোড হচ্ছে...'
-                  : SC.tr('noticePdfLoading'),
+                  : 'PDF লোড হচ্ছে...',
               style: TextStyle(
                 color: isDark
                     ? Colors.white.withValues(alpha: 0.4)
@@ -341,7 +307,7 @@ class _NoticePdfViewerState extends State<NoticePdfViewer> {
             ),
             const SizedBox(height: 16),
             Text(
-              'PDF খোলা যায়নি',
+              'PDF লোড করতে সমস্যা হয়েছে',
               style: TextStyle(
                 color: isDark ? Colors.white : const Color(0xFF1A2332),
                 fontSize: 16,
@@ -350,7 +316,7 @@ class _NoticePdfViewerState extends State<NoticePdfViewer> {
             ),
             const SizedBox(height: 8),
             Text(
-              'ইন্টারনেট সংযোগ চেক করুন অথবা Browser-এ খুলুন।',
+              'ইন্টারনেট সংযোগ চেক করুন এবং আবার চেষ্টা করুন।',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: isDark
@@ -360,78 +326,38 @@ class _NoticePdfViewerState extends State<NoticePdfViewer> {
                 height: 1.5,
               ),
             ),
-            const SizedBox(height: 28),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Retry
-                GestureDetector(
-                  onTap: _downloadPdf,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [accent, SC.blue]),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withValues(alpha: 0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
+            const SizedBox(height: 24),
+            GestureDetector(
+              onTap: _downloadPdf,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 13),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [accent, SC.blue]),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.refresh_rounded,
-                          color: isDark ? Colors.black : Colors.white,
-                          size: 16),
-                      const SizedBox(width: 6),
-                      Text(
-                        'আবার চেষ্টা করুন',
-                        style: TextStyle(
-                          color: isDark ? Colors.black : Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ]),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                // Browser
-                GestureDetector(
-                  onTap: _openInBrowser,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.07)
-                          : Colors.black.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.12)
-                            : Colors.black.withValues(alpha: 0.10),
-                      ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.refresh_rounded,
+                      color: isDark ? Colors.black : Colors.white,
+                      size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'আবার চেষ্টা করুন',
+                    style: TextStyle(
+                      color: isDark ? Colors.black : Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
                     ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.open_in_new_rounded,
-                          color: isDark ? Colors.white70 : Colors.black54,
-                          size: 16),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Browser এ খুলুন',
-                        style: TextStyle(
-                          color: isDark ? Colors.white70 : Colors.black54,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ]),
                   ),
-                ),
-              ],
+                ]),
+              ),
             ),
           ],
         ),

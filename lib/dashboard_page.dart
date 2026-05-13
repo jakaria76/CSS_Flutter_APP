@@ -700,8 +700,7 @@ class _DashboardPageState extends State<DashboardPage>
     return AnimatedBuilder(
       animation: _aiGlowController,
       builder: (context, child) {
-        final glowOpacity =
-            0.3 + (_aiGlowController.value * 0.4); // 0.3 → 0.7
+        final glowOpacity = 0.3 + (_aiGlowController.value * 0.4);
 
         return GestureDetector(
           onTap: () {
@@ -719,13 +718,11 @@ class _DashboardPageState extends State<DashboardPage>
                 end: Alignment.bottomRight,
               ),
               boxShadow: [
-                // Inner glow
                 BoxShadow(
                   color: SC.cyan.withValues(alpha: glowOpacity),
                   blurRadius: 16,
                   spreadRadius: 2,
                 ),
-                // Outer soft shadow
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.3),
                   blurRadius: 8,
@@ -736,21 +733,22 @@ class _DashboardPageState extends State<DashboardPage>
             child: Stack(
               alignment: Alignment.center,
               children: [
-                // Icon — custom image থাকলে নিচের Image.asset ব্যবহার করো
-                // Image.asset(
-                //   'assets/images/ai_icon.png',
-                //   width: 28,
-                //   height: 28,
-                //   color: Colors.white,
-                // ),
-                // Default icon (image না থাকলে এটা দেখাবে)
-                const Icon(
-                  Icons.auto_awesome_rounded,
-                  color: Colors.white,
-                  size: 26,
+                // ── Circular image with fallback ──────────────────────────
+                ClipOval(
+                  child: Image.asset(
+                    'assets/images/css_chat_icon.png',
+                    width: 58,
+                    height: 58,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
                 ),
 
-                // Pulse ring
+                // ── Pulse ring ────────────────────────────────────────────
                 Positioned.fill(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -760,6 +758,26 @@ class _DashboardPageState extends State<DashboardPage>
                         width: 1.5,
                       ),
                     ),
+                  ),
+                ),
+
+                // ── Animated outer glow ring ──────────────────────────────
+                Positioned.fill(
+                  child: AnimatedBuilder(
+                    animation: _aiGlowController,
+                    builder: (_, __) {
+                      return DecoratedBox(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.cyanAccent.withValues(
+                              alpha: _aiGlowController.value * 0.5,
+                            ),
+                            width: 2,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],

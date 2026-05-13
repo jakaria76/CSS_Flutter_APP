@@ -99,6 +99,8 @@ class CustomDrawer extends StatelessWidget {
                           SC.tr('my_opinions'), Colors.purpleAccent, isDark),
                       _drawerButton(context, 30, Icons.settings,
                           SC.tr('settings'), Colors.orangeAccent, isDark),
+                      _drawerButton(context, 32, Icons.book_online_rounded,
+                          SC.tr('Constitution'), Colors.purpleAccent, isDark),
                       if (isAdmin) ...[
                         const SizedBox(height: 25),
                         _sectionLabel(SC.tr('admin_panel'), isDark),
@@ -168,6 +170,8 @@ class CustomDrawer extends StatelessWidget {
                             SC.tr('manage_post'), Colors.greenAccent, isDark),
                         _drawerButton(context, 31, Icons.post_add_rounded,
                             SC.tr('manage_all_member'), Colors.greenAccent, isDark),
+                        _drawerButton(context, 33, Icons.book,
+                            SC.tr('Manage_Constitution'), Colors.pinkAccent, isDark),
                       ],
                     ],
                   ),
