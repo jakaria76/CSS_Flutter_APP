@@ -1,7 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- দ্রষ্টব্য: এখানে package="..." থাকবে না, এটি এখন build.gradle.kts থেকে নিয়ন্ত্রিত হয় -->
 
-    <!-- প্রয়োজনীয় পারমিশনসমূহ -->
+    <!-- প্রয়োজনীয় পারমিশনসমূহ -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
@@ -11,12 +10,15 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>
 
+    <!-- Biometric / Fingerprint -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
+
     <application
         android:name="${applicationName}"
         android:label="CSS"
         android:icon="@mipmap/launcher_icon">
 
-        <!-- Google Maps API Key: এখানে তোমার আসল কী-টি বসাবে -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="YOUR_GOOGLE_MAPS_API_KEY"/>
@@ -41,7 +43,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Supabase Auth Redirect: ব্রাউজার থেকে অ্যাপে ফিরে আসার লজিক -->
+        <!-- Supabase Auth Redirect -->
         <activity
             android:name="com.aboutyou.dart_messaging.SupabaseAuthActivity"
             android:exported="true">
@@ -49,7 +51,6 @@
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>
                 <category android:name="android.intent.category.BROWSABLE"/>
-                <!-- scheme হিসেবে তোমার প্যাকেজ নাম ব্যবহার করা সবচেয়ে নিরাপদ -->
                 <data
                     android:scheme="com.css.society.app"
                     android:host="login-callback"/>
@@ -62,7 +63,7 @@
 
     </application>
 
-    <!-- Android 11+ এর জন্য কুয়েরি পারমিশন (URL/Call/Map ওপেন করার জন্য) -->
+    <!-- Android 11+ এর জন্য কুয়েরি পারমিশন -->
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

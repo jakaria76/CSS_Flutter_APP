@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'settings_constants.dart';
+import 'package:css/services/biometric_auth_service.dart';
 
 import 'change_password_page.dart';
 import 'change_email_page.dart';
@@ -30,8 +31,12 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage>
     with TickerProviderStateMixin {
-  bool _isLoggingOut = false;
-  bool _isAdmin = false;
+  bool _isLoggingOut       = false;
+  bool _isAdmin            = false;
+  bool _fingerprintAvail   = false;
+  bool _fingerprintEnabled = false;
+  bool _fingerprintLoading = false;
+
   late AnimationController _fadeController;
 
   @override
@@ -43,6 +48,7 @@ class _SettingsPageState extends State<SettingsPage>
         value: 0)
       ..forward();
     _checkAdminRole();
+    _loadBiometricState();
   }
 
   @override
@@ -51,7 +57,226 @@ class _SettingsPageState extends State<SettingsPage>
     super.dispose();
   }
 
-  // ── Admin role check ─────────────────────────────────────────────────────
+  // ── Biometric state ───────────────────────────────────────────────────────
+
+  Future<void> _loadBiometricState() async {
+    final avail   = await BiometricAuthService.isBiometricAvailable();
+    final enabled = await BiometricAuthService.isFingerprintEnabled();
+    if (mounted) {
+      setState(() {
+        _fingerprintAvail   = avail;
+        _fingerprintEnabled = enabled;
+      });
+    }
+  }
+
+  Future<void> _toggleFingerprint(bool value) async {
+    if (_fingerprintLoading) return;
+
+    // Device এ fingerprint না থাকলে tap করলে info দেখাবে
+    if (!_fingerprintAvail) {
+      _showFingerprintBanner(
+        icon: Icons.fingerprint_rounded,
+        color: SC.orange,
+        title: SC.tr('fingerprint_unavailable_title'),
+        message: SC.tr('fingerprint_unavailable_msg'),
+      );
+      return;
+    }
+
+    setState(() => _fingerprintLoading = true);
+
+    try {
+      if (value) {
+        final success = await BiometricAuthService.enableFingerprint();
+        if (!mounted) return;
+        if (success) {
+          setState(() => _fingerprintEnabled = true);
+          _showFingerprintBanner(
+            icon: Icons.fingerprint_rounded,
+            color: SC.green,
+            title: SC.tr('fingerprint_enabled_title'),
+            message: SC.tr('fingerprint_enabled_msg'),
+          );
+        } else {
+          _showFingerprintBanner(
+            icon: Icons.error_outline_rounded,
+            color: SC.red,
+            title: SC.tr('fingerprint_failed_title'),
+            message: SC.tr('fingerprint_failed_msg'),
+          );
+        }
+      } else {
+        _showDisableConfirmDialog();
+      }
+    } finally {
+      if (mounted) setState(() => _fingerprintLoading = false);
+    }
+  }
+
+  void _showDisableConfirmDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final isDark    = SC.isDark;
+        final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              color: SC.currentCardBg,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                  color: SC.red.withValues(alpha: 0.4), width: 1.5),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: SC.red.withValues(alpha: 0.1),
+                    border: Border.all(color: SC.red.withValues(alpha: 0.3)),
+                  ),
+                  child: Icon(Icons.fingerprint_rounded, color: SC.red, size: 32),
+                ),
+                const SizedBox(height: 18),
+                Text(SC.tr('fingerprint_disable_title'),
+                    style: TextStyle(color: textColor,
+                        fontWeight: FontWeight.w700, fontSize: 20)),
+                const SizedBox(height: 10),
+                Text(SC.tr('fingerprint_disable_confirm'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: textColor.withValues(alpha: 0.5),
+                        fontSize: 14, height: 1.6)),
+                const SizedBox(height: 28),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(
+                            color: textColor.withValues(alpha: 0.18)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(SC.tr('no'),
+                          style: TextStyle(
+                              color: textColor.withValues(alpha: 0.65),
+                              fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx);
+                        await BiometricAuthService.disableFingerprint();
+                        if (mounted) setState(() => _fingerprintEnabled = false);
+                        if (mounted) {
+                          SC.toast(context,
+                              SC.tr('fingerprint_disabled_toast'), SC.orange);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: SC.red,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text(SC.tr('disable'),
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                ]),
+              ]),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showFingerprintBanner({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String message,
+  }) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierColor: Colors.black45,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: SC.currentCardBg.withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                    color: color.withValues(alpha: 0.35), width: 1.2),
+              ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color.withValues(alpha: 0.1),
+                    border: Border.all(color: color.withValues(alpha: 0.3)),
+                  ),
+                  child: Icon(icon, color: color, size: 36),
+                ),
+                const SizedBox(height: 18),
+                Text(title,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: SC.currentTextColor,
+                        fontWeight: FontWeight.w800, fontSize: 18)),
+                const SizedBox(height: 10),
+                Text(message,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: SC.currentTextColor.withValues(alpha: 0.55),
+                        fontSize: 13, height: 1.6)),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: color,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('OK',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Admin role check ──────────────────────────────────────────────────────
+
   Future<void> _checkAdminRole() async {
     try {
       final uid = Supabase.instance.client.auth.currentUser?.id;
@@ -66,7 +291,8 @@ class _SettingsPageState extends State<SettingsPage>
     } catch (_) {}
   }
 
-  // ── Logout ───────────────────────────────────────────────────────────────
+  // ── Logout ────────────────────────────────────────────────────────────────
+
   Future<void> _logout() async {
     setState(() => _isLoggingOut = true);
     try {
@@ -101,8 +327,8 @@ class _SettingsPageState extends State<SettingsPage>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: SC.orange.withValues(alpha: 0.1),
-                  border: Border.all(
-                      color: SC.orange.withValues(alpha: 0.3)),
+                  border:
+                  Border.all(color: SC.orange.withValues(alpha: 0.3)),
                 ),
                 child: const Icon(Icons.logout_rounded,
                     color: SC.orange, size: 32),
@@ -114,14 +340,12 @@ class _SettingsPageState extends State<SettingsPage>
                       fontWeight: FontWeight.w700,
                       fontSize: 20)),
               const SizedBox(height: 10),
-              Text(
-                SC.tr('logout_confirm'),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    color: SC.currentTextColor.withValues(alpha: 0.5),
-                    fontSize: 14,
-                    height: 1.6),
-              ),
+              Text(SC.tr('logout_confirm'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: SC.currentTextColor.withValues(alpha: 0.5),
+                      fontSize: 14,
+                      height: 1.6)),
               const SizedBox(height: 28),
               Row(children: [
                 Expanded(
@@ -173,6 +397,8 @@ class _SettingsPageState extends State<SettingsPage>
   Future<void> _go(Widget page) =>
       Navigator.push(context, MaterialPageRoute(builder: (_) => page));
 
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
@@ -181,8 +407,8 @@ class _SettingsPageState extends State<SettingsPage>
         return ValueListenableBuilder<String>(
           valueListenable: SC.themeModeNotifier,
           builder: (context, __, ___) {
-            final isDark  = SC.isDark;
-            final bgColor = isDark ? SC.bgStart : const Color(0xFFF0F4FF);
+            final isDark    = SC.isDark;
+            final bgColor   = isDark ? SC.bgStart : const Color(0xFFF0F4FF);
             final textColor = isDark ? Colors.white : const Color(0xFF1A2332);
 
             return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -217,11 +443,9 @@ class _SettingsPageState extends State<SettingsPage>
                           40),
                       children: [
 
-                        // ── Account & Profile ───────────────────────────
-                        SC.sectionHeader(
-                            SC.tr('account_profile'),
-                            Icons.manage_accounts_rounded,
-                            SC.cyan),
+                        // ── Account & Profile ──────────────────────────
+                        SC.sectionHeader(SC.tr('account_profile'),
+                            Icons.manage_accounts_rounded, SC.cyan),
                         SC.card([
                           SC.tile(
                             icon: Icons.lock_reset_rounded,
@@ -250,11 +474,9 @@ class _SettingsPageState extends State<SettingsPage>
 
                         const SizedBox(height: 22),
 
-                        // ── App Preferences ─────────────────────────────
-                        SC.sectionHeader(
-                            SC.tr('app_preferences'),
-                            Icons.palette_rounded,
-                            SC.purple),
+                        // ── App Preferences ────────────────────────────
+                        SC.sectionHeader(SC.tr('app_preferences'),
+                            Icons.palette_rounded, SC.purple),
                         SC.card([
                           SC.tile(
                             icon: Icons.dark_mode_rounded,
@@ -291,11 +513,9 @@ class _SettingsPageState extends State<SettingsPage>
 
                         const SizedBox(height: 22),
 
-                        // ── Privacy & Security ──────────────────────────
-                        SC.sectionHeader(
-                            SC.tr('privacy_security'),
-                            Icons.security_rounded,
-                            SC.green),
+                        // ── Privacy & Security ─────────────────────────
+                        SC.sectionHeader(SC.tr('privacy_security'),
+                            Icons.security_rounded, SC.green),
                         SC.card([
                           SC.tile(
                             icon: Icons.verified_user_rounded,
@@ -305,6 +525,11 @@ class _SettingsPageState extends State<SettingsPage>
                             onTap: () => _go(const PrivacySecurityPage()),
                           ),
                           SC.divider(),
+
+                          // ── Fingerprint tile — সবসময় দেখাবে ──────────
+                          _buildFingerprintTile(isDark, textColor),
+                          SC.divider(),
+
                           SC.tile(
                             icon: Icons.devices_rounded,
                             iconColor: SC.blue,
@@ -324,11 +549,9 @@ class _SettingsPageState extends State<SettingsPage>
 
                         const SizedBox(height: 22),
 
-                        // ── Data & Storage ──────────────────────────────
-                        SC.sectionHeader(
-                            SC.tr('data_storage'),
-                            Icons.storage_rounded,
-                            SC.blue),
+                        // ── Data & Storage ─────────────────────────────
+                        SC.sectionHeader(SC.tr('data_storage'),
+                            Icons.storage_rounded, SC.blue),
                         SC.card([
                           SC.tile(
                             icon: Icons.cleaning_services_rounded,
@@ -349,11 +572,9 @@ class _SettingsPageState extends State<SettingsPage>
 
                         const SizedBox(height: 22),
 
-                        // ── Support ─────────────────────────────────────
-                        SC.sectionHeader(
-                            SC.tr('support'),
-                            Icons.support_agent_rounded,
-                            SC.orange),
+                        // ── Support ────────────────────────────────────
+                        SC.sectionHeader(SC.tr('support'),
+                            Icons.support_agent_rounded, SC.orange),
                         SC.card([
                           SC.tile(
                             icon: Icons.help_center_rounded,
@@ -390,12 +611,10 @@ class _SettingsPageState extends State<SettingsPage>
 
                         const SizedBox(height: 22),
 
-                        // ── Admin Panel (শুধু admin role-এর জন্য) ──────
+                        // ── Admin Panel ────────────────────────────────
                         if (_isAdmin) ...[
-                          SC.sectionHeader(
-                              SC.tr('admin_panel'),
-                              Icons.admin_panel_settings_rounded,
-                              SC.red),
+                          SC.sectionHeader(SC.tr('admin_panel'),
+                              Icons.admin_panel_settings_rounded, SC.red),
                           SC.card([
                             SC.tile(
                               icon: Icons.feedback_rounded,
@@ -416,11 +635,9 @@ class _SettingsPageState extends State<SettingsPage>
                           const SizedBox(height: 22),
                         ],
 
-                        // ── Session / Logout ────────────────────────────
-                        SC.sectionHeader(
-                            SC.tr('session'),
-                            Icons.exit_to_app_rounded,
-                            SC.red),
+                        // ── Session / Logout ───────────────────────────
+                        SC.sectionHeader(SC.tr('session'),
+                            Icons.exit_to_app_rounded, SC.red),
                         SC.card([
                           SC.tile(
                             icon: Icons.logout_rounded,
@@ -439,7 +656,6 @@ class _SettingsPageState extends State<SettingsPage>
                         ]),
 
                         const SizedBox(height: 16),
-
                         Center(
                           child: Text(
                             'CSS App v1.0.0',
@@ -461,7 +677,89 @@ class _SettingsPageState extends State<SettingsPage>
     );
   }
 
-  // ── Back button (theme-aware) ─────────────────────────────────────────────
+  // ── Fingerprint tile ──────────────────────────────────────────────────────
+
+  Widget _buildFingerprintTile(bool isDark, Color textColor) {
+    // Device এ fingerprint না থাকলে greyed out দেখাবে
+    final isAvail  = _fingerprintAvail;
+    final iconColor = isAvail ? SC.cyan : textColor.withValues(alpha: 0.3);
+    final bgColor   = isAvail
+        ? SC.cyan.withValues(alpha: 0.12)
+        : textColor.withValues(alpha: 0.05);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(children: [
+        // Icon
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: bgColor,
+          ),
+          child: Icon(Icons.fingerprint_rounded, color: iconColor, size: 22),
+        ),
+        const SizedBox(width: 14),
+
+        // Text
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                SC.tr('fingerprint_login'),
+                style: TextStyle(
+                    color: isAvail
+                        ? textColor
+                        : textColor.withValues(alpha: 0.4),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                !isAvail
+                    ? SC.tr('fingerprint_unavailable_sub')
+                    : _fingerprintEnabled
+                    ? SC.tr('fingerprint_login_on')
+                    : SC.tr('fingerprint_login_off'),
+                style: TextStyle(
+                    color: !isAvail
+                        ? textColor.withValues(alpha: 0.25)
+                        : _fingerprintEnabled
+                        ? SC.green.withValues(alpha: 0.8)
+                        : textColor.withValues(alpha: 0.4),
+                    fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+
+        // Toggle
+        _fingerprintLoading
+            ? const SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: SC.cyan))
+            : Switch.adaptive(
+          value: _fingerprintEnabled,
+          onChanged: isAvail ? _toggleFingerprint : (val) => _toggleFingerprint(val),
+          activeColor: SC.cyan,
+          activeTrackColor: SC.cyan.withValues(alpha: 0.25),
+          inactiveThumbColor: isAvail
+              ? textColor.withValues(alpha: 0.4)
+              : textColor.withValues(alpha: 0.2),
+          inactiveTrackColor: isAvail
+              ? textColor.withValues(alpha: 0.1)
+              : textColor.withValues(alpha: 0.05),
+        ),
+      ]),
+    );
+  }
+
+  // ── Back button ───────────────────────────────────────────────────────────
+
   Widget _buildBackButton(bool isDark, Color textColor) => Padding(
     padding: const EdgeInsets.all(10),
     child: ClipOval(
@@ -475,7 +773,8 @@ class _SettingsPageState extends State<SettingsPage>
                   .withValues(alpha: 0.2)),
         ),
         child: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
+          icon:
+          const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
           onPressed: () => Navigator.pop(context),
           color: textColor,
         ),
@@ -484,18 +783,18 @@ class _SettingsPageState extends State<SettingsPage>
   );
 
   // ── Background ────────────────────────────────────────────────────────────
-  Widget _buildBackground({required Widget child}) =>
-      Stack(children: [
-        Container(
-            decoration: BoxDecoration(gradient: SC.currentGradient)),
-        Positioned(
-            top: -80,
-            right: -60,
-            child: SC.blob(260, SC.cyan.withValues(alpha: 0.04))),
-        Positioned(
-            bottom: 200,
-            left: -120,
-            child: SC.blob(240, SC.blue.withValues(alpha: 0.04))),
-        child,
-      ]);
+
+  Widget _buildBackground({required Widget child}) => Stack(children: [
+    Container(
+        decoration: BoxDecoration(gradient: SC.currentGradient)),
+    Positioned(
+        top: -80,
+        right: -60,
+        child: SC.blob(260, SC.cyan.withValues(alpha: 0.04))),
+    Positioned(
+        bottom: 200,
+        left: -120,
+        child: SC.blob(240, SC.blue.withValues(alpha: 0.04))),
+    child,
+  ]);
 }

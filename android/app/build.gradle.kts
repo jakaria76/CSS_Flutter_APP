@@ -4,7 +4,6 @@ import java.io.FileInputStream
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    // Firebase প্লাগইনটি এখান থেকে সরিয়ে দেওয়া হয়েছে
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -56,7 +55,6 @@ android {
 }
 
 dependencies {
-    // Firebase এর সব ডিপেন্ডেন্সি এখান থেকে ডিলিট করা হয়েছে
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 

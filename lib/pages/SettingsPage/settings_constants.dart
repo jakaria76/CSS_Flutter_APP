@@ -1764,6 +1764,7 @@ class SC {
     'urgencyUrgent': {'বাংলা': 'জরুরী', 'English': 'Urgent'},
     'urgencyModerate': {'বাংলা': 'মাঝারি', 'English': 'Moderate'},
 
+
     // ══════════════════════════════════════════════════════════════
 // এই keys গুলো settings_constants.dart এ _translations map এ যোগ করো
 // ══════════════════════════════════════════════════════════════
@@ -1822,6 +1823,20 @@ class SC {
 
     'help_hero_title':    {'বাংলা': 'আমরা কীভাবে\nসাহায্য করতে পারি?', 'English': 'How Can We\nHelp You?'},
 
+    'fingerprint_login':          {'বাংলা': 'ফিঙ্গারপ্রিন্ট লগইন',          'English': 'Fingerprint Login'},
+    'fingerprint_login_on':       {'বাংলা': 'চালু আছে — বন্ধ করতে চাপুন',   'English': 'Enabled — tap to disable'},
+    'fingerprint_login_off':      {'বাংলা': 'বায়োমেট্রিক লগইন চালু করুন',   'English': 'Tap to enable biometric login'},
+    'fingerprint_enabled_title':  {'বাংলা': 'ফিঙ্গারপ্রিন্ট চালু হয়েছে!',  'English': 'Fingerprint Enabled!'},
+    'fingerprint_enabled_msg':    {'বাংলা': 'এখন থেকে ফিঙ্গারপ্রিন্ট দিয়ে লগইন করতে পারবেন।', 'English': 'You can now login with your fingerprint.'},
+    'fingerprint_failed_title':   {'বাংলা': 'সেটআপ ব্যর্থ হয়েছে',          'English': 'Setup Failed'},
+    'fingerprint_failed_msg':     {'বাংলা': 'ফিঙ্গারপ্রিন্ট যাচাই করা যায়নি। আবার চেষ্টা করুন।', 'English': 'Could not verify fingerprint. Please try again.'},
+    'fingerprint_disable_title':  {'বাংলা': 'ফিঙ্গারপ্রিন্ট বন্ধ করবেন?',  'English': 'Disable Fingerprint?'},
+    'fingerprint_disable_confirm':{'বাংলা': 'পরের বার OTP দিয়ে লগইন করতে হবে।', 'English': 'You will need OTP to login next time.'},
+    'fingerprint_disabled_toast': {'বাংলা': 'ফিঙ্গারপ্রিন্ট লগইন বন্ধ করা হয়েছে', 'English': 'Fingerprint login disabled'},
+    'disable':                    {'বাংলা': 'বন্ধ করুন',                    'English': 'Disable'},
+    'fingerprint_unavailable_title': {'বাংলা': 'উপলব্ধ নয়',               'English': 'Not Available'},
+    'fingerprint_unavailable_sub':   {'বাংলা': 'ডিভাইসে ফিঙ্গারপ্রিন্ট নেই', 'English': 'No fingerprint on device'},
+    'fingerprint_unavailable_msg':   {'বাংলা': 'আগে ফোনের সেটিংস থেকে ফিঙ্গারপ্রিন্ট সেটআপ করুন।', 'English': 'Please set up fingerprint in your phone settings first.'},
 
 
   };
