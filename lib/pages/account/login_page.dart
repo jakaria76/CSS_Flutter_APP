@@ -10,7 +10,6 @@ import 'package:css/services/session_service.dart';
 import 'package:css/services/auth_guard_service.dart';
 import 'package:css/services/biometric_auth_service.dart';
 import 'dart:io' show Platform;
-import 'dart:math' as math;
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -19,17 +18,15 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage>
-    with TickerProviderStateMixin {
+class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   final _emailController    = TextEditingController();
   final _passwordController = TextEditingController();
   final SupabaseClient supabase = Supabase.instance.client;
 
-  bool _loading          = false;
-  bool _obscure          = true;
-  bool _fingerprintAvail = false;
-  bool _fingerprintEnabled = false;
-  bool _fingerprintLoading = false;
+  bool _loading             = false;
+  bool _obscure             = true;
+  bool _fingerprintEnabled  = false;
+  bool _fingerprintLoading  = false;
 
   late AnimationController _animCtrl;
   late AnimationController _pulseCtrl;
@@ -43,7 +40,6 @@ class _LoginPageState extends State<LoginPage>
   void initState() {
     super.initState();
 
-    // Entry animation
     _animCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 900));
     _fadeAnim  = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
@@ -51,14 +47,12 @@ class _LoginPageState extends State<LoginPage>
         begin: const Offset(0, 0.10), end: Offset.zero)
         .animate(CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic));
 
-    // Fingerprint pulse animation
     _pulseCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 1500))
       ..repeat(reverse: true);
     _pulseAnim = Tween<double>(begin: 0.95, end: 1.05)
         .animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
 
-    // Glow animation
     _glowCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 2000))
       ..repeat(reverse: true);
@@ -69,17 +63,12 @@ class _LoginPageState extends State<LoginPage>
     _checkBiometric();
   }
 
+  /// শুধু enabled state চেক করে — button সবসময় দেখাবে
   Future<void> _checkBiometric() async {
-    final avail   = await BiometricAuthService.isBiometricAvailable();
     final enabled = await BiometricAuthService.isFingerprintEnabled();
     if (mounted) {
-      setState(() {
-        _fingerprintAvail   = avail;
-        _fingerprintEnabled = enabled;
-      });
-
-      // Auto-prompt fingerprint if enabled
-      if (enabled && avail) {
+      setState(() => _fingerprintEnabled = enabled);
+      if (enabled) {
         await Future.delayed(const Duration(milliseconds: 600));
         _loginWithFingerprint(auto: true);
       }
@@ -95,8 +84,6 @@ class _LoginPageState extends State<LoginPage>
     _passwordController.dispose();
     super.dispose();
   }
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
 
   String get _device {
     try {
@@ -129,21 +116,25 @@ class _LoginPageState extends State<LoginPage>
 
   Future<void> _loginWithFingerprint({bool auto = false}) async {
     if (_fingerprintLoading) return;
+
+    // Enabled না থাকলে — Settings এ যাওয়ার dialog দেখাও
+    if (!_fingerprintEnabled) {
+      _showFingerprintDisabledDialog();
+      return;
+    }
+
     setState(() => _fingerprintLoading = true);
     HapticFeedback.mediumImpact();
 
     try {
       final response = await BiometricAuthService.loginWithFingerprint();
-
       if (response == null) {
         if (!auto && mounted) {
           _showError('Fingerprint not recognized. Please try again.');
         }
         return;
       }
-
       await ActivityLogger.log(activityType: 'login_success', device: _device);
-
       if (!mounted) return;
       AuthGuardService.init(context);
       Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
@@ -154,7 +145,7 @@ class _LoginPageState extends State<LoginPage>
     }
   }
 
-  // ── Email/Password login ───────────────────────────────────────────────────
+  // ── Email login ────────────────────────────────────────────────────────────
 
   Future<void> _login() async {
     final email    = _emailController.text.trim().toLowerCase();
@@ -196,14 +187,13 @@ class _LoginPageState extends State<LoginPage>
       );
       if (authRes.user == null) throw const AuthException('Login failed');
 
-      await ActivityLogger.log(activityType: 'login_success', device: _device);
-
       final factors = await supabase.auth.mfa.listFactors();
       final hasMfa  = factors.all.any((f) => f.status == FactorStatus.verified);
 
       const testEmails = ['googlereview@myapp.com'];
       if (testEmails.contains(email)) {
         if (!mounted) return;
+        await ActivityLogger.log(activityType: 'login_success', device: _device);
         AuthGuardService.init(context);
         Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
         return;
@@ -248,7 +238,7 @@ class _LoginPageState extends State<LoginPage>
     }
   }
 
-  // ── Error UI ───────────────────────────────────────────────────────────────
+  // ── Error / Dialog UI ──────────────────────────────────────────────────────
 
   void _showError(String msg) {
     if (!mounted) return;
@@ -265,6 +255,66 @@ class _LoginPageState extends State<LoginPage>
       margin: const EdgeInsets.all(16),
       duration: const Duration(seconds: 4),
     ));
+  }
+
+  /// Fingerprint disabled হলে — Settings এ যেতে বলে
+  void _showFingerprintDisabledDialog() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F1E2E).withValues(alpha: 0.97),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(
+                    color: Colors.cyanAccent.withValues(alpha: 0.35), width: 1.2),
+              ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.cyanAccent.withValues(alpha: 0.10),
+                    border: Border.all(
+                        color: Colors.cyanAccent.withValues(alpha: 0.3)),
+                  ),
+                  child: const Icon(Icons.fingerprint_rounded,
+                      color: Colors.cyanAccent, size: 36),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Fingerprint Not Enabled',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 20),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Go to Settings → Security to enable fingerprint login.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.55),
+                      fontSize: 14,
+                      height: 1.6),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showBanner({
@@ -288,7 +338,8 @@ class _LoginPageState extends State<LoginPage>
               decoration: BoxDecoration(
                 color: const Color(0xFF0F1E2E).withValues(alpha: 0.97),
                 borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: color.withValues(alpha: 0.4), width: 1.2),
+                border: Border.all(
+                    color: color.withValues(alpha: 0.4), width: 1.2),
               ),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Container(
@@ -306,7 +357,8 @@ class _LoginPageState extends State<LoginPage>
                         fontWeight: FontWeight.w800, fontSize: 20)),
                 const SizedBox(height: 12),
                 Text(message, textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.6),
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.6),
                         fontSize: 14, height: 1.6)),
                 const SizedBox(height: 28),
                 if (actionLabel != null && onAction != null) ...[
@@ -315,14 +367,16 @@ class _LoginPageState extends State<LoginPage>
                     child: ElevatedButton(
                       onPressed: () { Navigator.pop(ctx); onAction(); },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: color, foregroundColor: Colors.white,
+                        backgroundColor: color,
+                        foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: Text(actionLabel,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 14)),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -332,13 +386,15 @@ class _LoginPageState extends State<LoginPage>
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(ctx),
                     style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                      side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.2)),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     child: const Text('OK',
-                        style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        style: TextStyle(
+                            color: Colors.white70, fontSize: 14)),
                   ),
                 ),
               ]),
@@ -362,7 +418,8 @@ class _LoginPageState extends State<LoginPage>
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+            icon: const Icon(Icons.arrow_back_ios_new,
+                color: Colors.white, size: 20),
             onPressed: () => Navigator.pop(context),
           ),
         ),
@@ -371,13 +428,16 @@ class _LoginPageState extends State<LoginPage>
           height: double.infinity,
           decoration: const BoxDecoration(
             gradient: LinearGradient(
-              colors: [Color(0xFF060D14), Color(0xFF0D1F2D), Color(0xFF0A2540)],
+              colors: [
+                Color(0xFF060D14),
+                Color(0xFF0D1F2D),
+                Color(0xFF0A2540),
+              ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
           ),
           child: Stack(children: [
-            // ── Decorative background elements ──────────────────────────────
             _AnimatedOrb(glowAnim: _glowAnim, top: -80, right: -60,
                 size: 260, color: Colors.cyanAccent, opacity: 0.06),
             _AnimatedOrb(glowAnim: _glowAnim, bottom: 60, left: -60,
@@ -385,7 +445,6 @@ class _LoginPageState extends State<LoginPage>
             _AnimatedOrb(glowAnim: _glowAnim, top: 200, left: 20,
                 size: 120, color: Colors.tealAccent, opacity: 0.03),
 
-            // Grid pattern overlay
             CustomPaint(
               size: Size(MediaQuery.of(context).size.width,
                   MediaQuery.of(context).size.height),
@@ -402,27 +461,9 @@ class _LoginPageState extends State<LoginPage>
                       position: _slideAnim,
                       child: Column(children: [
                         const SizedBox(height: 16),
-
-                        // ── Header logo ───────────────────────────────────
                         _buildLogoSection(),
                         const SizedBox(height: 40),
-
-                        // ── Fingerprint section (if enabled) ──────────────
-                        if (_fingerprintEnabled && _fingerprintAvail) ...[
-                          _buildFingerprintSection(),
-                          const SizedBox(height: 32),
-                          _buildDivider(),
-                          const SizedBox(height: 24),
-                        ],
-
-                        // ── Form card ─────────────────────────────────────
                         _buildFormCard(),
-                        const SizedBox(height: 32),
-
-                        // ── Bottom fingerprint button (if available but not enabled) ──
-                        if (_fingerprintAvail && !_fingerprintEnabled)
-                          _buildFingerprintHint(),
-
                         const SizedBox(height: 32),
                         Text(
                           'Conscious Student Society © 2026',
@@ -447,49 +488,44 @@ class _LoginPageState extends State<LoginPage>
 
   Widget _buildLogoSection() {
     return Column(children: [
-      // Glow ring + icon
       AnimatedBuilder(
         animation: _glowAnim,
         builder: (_, __) => Stack(alignment: Alignment.center, children: [
-          // Outer glow ring
           Container(
-            width: 110,
-            height: 110,
+            width: 110, height: 110,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.cyanAccent.withValues(alpha: _glowAnim.value * 0.3),
-                  blurRadius: 40,
-                  spreadRadius: 10,
+                  color: Colors.cyanAccent
+                      .withValues(alpha: _glowAnim.value * 0.3),
+                  blurRadius: 40, spreadRadius: 10,
                 ),
               ],
             ),
           ),
-          // Ring border
           Container(
-            width: 90,
-            height: 90,
+            width: 90, height: 90,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                  color: Colors.cyanAccent.withValues(alpha: 0.3), width: 1.5),
+                  color: Colors.cyanAccent.withValues(alpha: 0.3),
+                  width: 1.5),
               color: Colors.cyanAccent.withValues(alpha: 0.05),
             ),
           ),
-          // Inner icon container
           ClipRRect(
             borderRadius: BorderRadius.circular(50),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(
-                width: 74,
-                height: 74,
+                width: 74, height: 74,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.cyanAccent.withValues(alpha: 0.08),
                   border: Border.all(
-                      color: Colors.cyanAccent.withValues(alpha: 0.2), width: 1),
+                      color: Colors.cyanAccent.withValues(alpha: 0.2),
+                      width: 1),
                 ),
                 child: const Icon(Icons.lock_person_rounded,
                     size: 34, color: Colors.cyanAccent),
@@ -500,122 +536,18 @@ class _LoginPageState extends State<LoginPage>
       ),
       const SizedBox(height: 22),
       const Text('Welcome Back',
-          style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900,
-              color: Colors.white, letterSpacing: -0.5)),
+          style: TextStyle(
+              fontSize: 30,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: -0.5)),
       const SizedBox(height: 6),
       Text('Sign in to your account',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.45),
-              fontSize: 14, letterSpacing: 0.2)),
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.45),
+              fontSize: 14,
+              letterSpacing: 0.2)),
     ]);
-  }
-
-  // ── Fingerprint primary section ────────────────────────────────────────────
-
-  Widget _buildFingerprintSection() {
-    return Column(children: [
-      // Pulse ring + fingerprint button
-      AnimatedBuilder(
-        animation: _pulseAnim,
-        builder: (_, child) => Transform.scale(
-          scale: _fingerprintLoading ? _pulseAnim.value : 1.0,
-          child: child,
-        ),
-        child: GestureDetector(
-          onTap: () => _loginWithFingerprint(),
-          child: AnimatedBuilder(
-            animation: _glowAnim,
-            builder: (_, __) => Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.cyanAccent.withValues(alpha: _glowAnim.value * 0.4),
-                    blurRadius: 30,
-                    spreadRadius: 5,
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(50),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.cyanAccent.withValues(alpha: 0.2),
-                          Colors.tealAccent.withValues(alpha: 0.1),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(
-                          color: Colors.cyanAccent.withValues(alpha: 0.4), width: 1.5),
-                    ),
-                    child: _fingerprintLoading
-                        ? const Center(
-                        child: SizedBox(
-                          width: 32, height: 32,
-                          child: CircularProgressIndicator(
-                              color: Colors.cyanAccent, strokeWidth: 2),
-                        ))
-                        : const Icon(Icons.fingerprint_rounded,
-                        size: 50, color: Colors.cyanAccent),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-      const SizedBox(height: 16),
-      Text('Touch to login with fingerprint',
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.6),
-              fontSize: 13, fontWeight: FontWeight.w500)),
-      const SizedBox(height: 4),
-      Text('Quick & secure biometric login',
-          style: TextStyle(color: Colors.cyanAccent.withValues(alpha: 0.5),
-              fontSize: 11)),
-    ]);
-  }
-
-  Widget _buildDivider() {
-    return Row(children: [
-      Expanded(child: Container(height: 1,
-          color: Colors.white.withValues(alpha: 0.08))),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Text('OR LOGIN WITH EMAIL',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.3),
-                fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
-      ),
-      Expanded(child: Container(height: 1,
-          color: Colors.white.withValues(alpha: 0.08))),
-    ]);
-  }
-
-  Widget _buildFingerprintHint() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color: Colors.cyanAccent.withValues(alpha: 0.05),
-        border: Border.all(color: Colors.cyanAccent.withValues(alpha: 0.15)),
-      ),
-      child: Row(children: [
-        Icon(Icons.fingerprint_rounded,
-            color: Colors.cyanAccent.withValues(alpha: 0.6), size: 22),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text('Enable fingerprint login from Settings after signing in',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.5),
-                  fontSize: 12, height: 1.4)),
-        ),
-      ]),
-    );
   }
 
   // ── Form card ──────────────────────────────────────────────────────────────
@@ -630,20 +562,27 @@ class _LoginPageState extends State<LoginPage>
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(
+                color: Colors.white.withValues(alpha: 0.08)),
           ),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             // Section label
             Row(children: [
-              Container(width: 3, height: 16,
+              Container(
+                  width: 3,
+                  height: 16,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(2),
                     color: Colors.cyanAccent,
                   )),
               const SizedBox(width: 10),
               Text('Email Login',
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.5),
-                      fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+                  style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2)),
             ]),
             const SizedBox(height: 24),
 
@@ -663,84 +602,215 @@ class _LoginPageState extends State<LoginPage>
             ),
             const SizedBox(height: 8),
 
-            // Forgot password
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
-                onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const ForgotPasswordPage())),
+                onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ForgotPasswordPage())),
                 style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
                 child: Text('Forgot Password?',
                     style: TextStyle(
                         color: Colors.cyanAccent.withValues(alpha: 0.8),
-                        fontSize: 12, fontWeight: FontWeight.w600)),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600)),
               ),
             ),
             const SizedBox(height: 20),
 
-            // Login button
-            SizedBox(
-              width: double.infinity,
-              height: 54,
-              child: ElevatedButton(
-                onPressed: _loading ? null : _login,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                ),
-                child: Ink(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    gradient: _loading
-                        ? LinearGradient(colors: [
-                      Colors.cyanAccent.withValues(alpha: 0.3),
-                      Colors.tealAccent.withValues(alpha: 0.3),
-                    ])
-                        : const LinearGradient(
-                      colors: [Colors.cyanAccent, Color(0xFF00BFA5)],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                    boxShadow: _loading ? [] : [
-                      BoxShadow(
-                        color: Colors.cyanAccent.withValues(alpha: 0.25),
-                        blurRadius: 20, offset: const Offset(0, 8),
+            // ── SIGN IN button + Fingerprint button (সবসময় দেখাবে) ─────────
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: _loading ? null : _login,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
                       ),
-                    ],
-                  ),
-                  child: Container(
-                    alignment: Alignment.center,
-                    child: _loading
-                        ? const SizedBox(width: 22, height: 22,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Color(0xFF0F2027)))
-                        : const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('SIGN IN',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w800, fontSize: 14,
-                                color: Color(0xFF0A1628), letterSpacing: 1.5)),
-                        SizedBox(width: 8),
-                        Icon(Icons.arrow_forward_rounded,
-                            color: Color(0xFF0A1628), size: 18),
-                      ],
+                      child: Ink(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          gradient: _loading
+                              ? LinearGradient(colors: [
+                            Colors.cyanAccent.withValues(alpha: 0.3),
+                            Colors.tealAccent.withValues(alpha: 0.3),
+                          ])
+                              : const LinearGradient(
+                            colors: [
+                              Colors.cyanAccent,
+                              Color(0xFF00BFA5)
+                            ],
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                          ),
+                          boxShadow: _loading
+                              ? []
+                              : [
+                            BoxShadow(
+                              color: Colors.cyanAccent
+                                  .withValues(alpha: 0.25),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: Container(
+                          alignment: Alignment.center,
+                          child: _loading
+                              ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF0F2027)))
+                              : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('SIGN IN',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      color: Color(0xFF0A1628),
+                                      letterSpacing: 1.5)),
+                              SizedBox(width: 8),
+                              Icon(Icons.arrow_forward_rounded,
+                                  color: Color(0xFF0A1628), size: 18),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
+                ),
+
+                // ── Fingerprint button — সবসময় দেখাবে ──────────────────────
+                const SizedBox(width: 12),
+                _buildFingerprintButton(),
+              ],
+            ),
+
+            // Enable না থাকলে hint text
+            if (!_fingerprintEnabled) ...[
+              const SizedBox(height: 14),
+              GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/settings'),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.info_outline_rounded,
+                        size: 12,
+                        color: Colors.cyanAccent.withValues(alpha: 0.5)),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Tap fingerprint icon or go to Settings to enable',
+                      style: TextStyle(
+                          color: Colors.cyanAccent.withValues(alpha: 0.5),
+                          fontSize: 11),
+                    ),
+                  ],
                 ),
               ),
-            ),
+            ],
           ]),
         ),
       ),
     );
   }
+
+  // ── Fingerprint button ─────────────────────────────────────────────────────
+
+  Widget _buildFingerprintButton() {
+    return AnimatedBuilder(
+      animation: _glowAnim,
+      builder: (_, __) => GestureDetector(
+        onTap: _fingerprintLoading ? null : () => _loginWithFingerprint(),
+        child: AnimatedBuilder(
+          animation: _pulseAnim,
+          builder: (_, child) => Transform.scale(
+            scale: _fingerprintLoading ? _pulseAnim.value : 1.0,
+            child: child,
+          ),
+          child: Container(
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: _fingerprintEnabled
+                  ? [
+                BoxShadow(
+                  color: Colors.cyanAccent
+                      .withValues(alpha: _glowAnim.value * 0.35),
+                  blurRadius: 16,
+                  spreadRadius: 2,
+                ),
+              ]
+                  : [],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      colors: _fingerprintEnabled
+                          ? [
+                        Colors.cyanAccent.withValues(alpha: 0.18),
+                        Colors.tealAccent.withValues(alpha: 0.08),
+                      ]
+                          : [
+                        Colors.white.withValues(alpha: 0.05),
+                        Colors.white.withValues(alpha: 0.02),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                      color: _fingerprintEnabled
+                          ? Colors.cyanAccent.withValues(alpha: 0.4)
+                          : Colors.white.withValues(alpha: 0.15),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: _fingerprintLoading
+                      ? const Center(
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                          color: Colors.cyanAccent, strokeWidth: 2),
+                    ),
+                  )
+                      : Icon(
+                    Icons.fingerprint_rounded,
+                    size: 28,
+                    color: _fingerprintEnabled
+                        ? Colors.cyanAccent
+                        : Colors.white.withValues(alpha: 0.30),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Text field ─────────────────────────────────────────────────────────────
 
   Widget _buildTextField({
     required TextEditingController controller,
@@ -751,8 +821,11 @@ class _LoginPageState extends State<LoginPage>
   }) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(label.toUpperCase(),
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.35),
-              fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.35),
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2)),
       const SizedBox(height: 8),
       TextField(
         controller: controller,
@@ -764,17 +837,23 @@ class _LoginPageState extends State<LoginPage>
           else if (!_loading) _login();
         },
         decoration: InputDecoration(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          contentPadding:
+          const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
           prefixIcon: Padding(
             padding: const EdgeInsets.only(left: 14, right: 10),
-            child: Icon(icon, color: Colors.cyanAccent.withValues(alpha: 0.5), size: 20),
+            child: Icon(icon,
+                color: Colors.cyanAccent.withValues(alpha: 0.5), size: 20),
           ),
-          prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+          prefixIconConstraints:
+          const BoxConstraints(minWidth: 0, minHeight: 0),
           suffixIcon: isPassword
               ? IconButton(
             icon: Icon(
-              _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-              color: Colors.white.withValues(alpha: 0.3), size: 20,
+              _obscure
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined,
+              color: Colors.white.withValues(alpha: 0.3),
+              size: 20,
             ),
             onPressed: () => setState(() => _obscure = !_obscure),
           )
@@ -783,11 +862,13 @@ class _LoginPageState extends State<LoginPage>
           fillColor: Colors.black.withValues(alpha: 0.25),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.07)),
+            borderSide:
+            BorderSide(color: Colors.white.withValues(alpha: 0.07)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Colors.cyanAccent, width: 1.2),
+            borderSide:
+            const BorderSide(color: Colors.cyanAccent, width: 1.2),
           ),
         ),
       ),
@@ -819,7 +900,8 @@ class _AnimatedOrb extends StatelessWidget {
       child: AnimatedBuilder(
         animation: glowAnim,
         builder: (_, __) => Container(
-          width: size, height: size,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: color.withValues(alpha: opacity * glowAnim.value),

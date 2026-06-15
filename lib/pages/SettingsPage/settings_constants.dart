@@ -1838,6 +1838,17 @@ class SC {
     'fingerprint_unavailable_sub':   {'বাংলা': 'ডিভাইসে ফিঙ্গারপ্রিন্ট নেই', 'English': 'No fingerprint on device'},
     'fingerprint_unavailable_msg':   {'বাংলা': 'আগে ফোনের সেটিংস থেকে ফিঙ্গারপ্রিন্ট সেটআপ করুন।', 'English': 'Please set up fingerprint in your phone settings first.'},
 
+    // ── Emergency Request Detail Page ─────────────────────────────────────────
+    'needed':         {'বাংলা': 'ব্যাগ দরকার',          'English': 'units needed'},
+    'contactNumber':  {'বাংলা': 'যোগাযোগ নম্বর',         'English': 'Contact Number'},
+    'postedAt':       {'বাংলা': 'পোস্ট করা হয়েছে',       'English': 'Posted At'},
+    'tapForDetails':  {'বাংলা': 'বিস্তারিত দেখুন',        'English': 'Tap for details'},
+    'address':        {'বাংলা': 'ঠিকানা',                 'English': 'Address'},
+    'hospital':       {'বাংলা': 'হাসপাতাল',               'English': 'Hospital'},
+    'notes':          {'বাংলা': 'নোট',                    'English': 'Notes'},
+    'myRequests':     {'বাংলা': 'আমার আবেদন',             'English': 'My Requests'},
+    'noMyRequests':   {'বাংলা': 'আপনার কোনো আবেদন নেই',  'English': 'No Requests Yet'},
+    'noMyRequestsSub':{'বাংলা': 'জরুরি রক্তের আবেদন পাঠান', 'English': 'Send an emergency blood request'},
 
   };
 

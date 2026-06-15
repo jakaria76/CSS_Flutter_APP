@@ -18,8 +18,10 @@ class EventDetailsPage extends StatefulWidget {
   State<EventDetailsPage> createState() => _EventDetailsPageState();
 }
 
-class _EventDetailsPageState extends State<EventDetailsPage> {
+class _EventDetailsPageState extends State<EventDetailsPage>
+    with TickerProviderStateMixin {
   final supabase = Supabase.instance.client;
+
   Map<String, dynamic>? event;
   List<Map<String, dynamic>> gallery = [];
   bool loading = true;
@@ -35,9 +37,40 @@ class _EventDetailsPageState extends State<EventDetailsPage> {
   LatLng? _eventLocation;
   List<Marker> _markers = [];
 
+  late AnimationController _entryCtrl;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+
+  // ─── Theme ────────────────────────────────────────────────────────────────
+  bool get _isDark => SC.isDark;
+  Color get _bg => _isDark ? const Color(0xFF060D1F) : const Color(0xFFF0F4FF);
+  Color get _card =>
+      _isDark ? const Color(0xFF0D1528) : Colors.white;
+  Color get _textPrimary =>
+      _isDark ? Colors.white : const Color(0xFF1A2332);
+  Color get _textSub =>
+      _isDark ? const Color(0xFFB0BEC5) : const Color(0xFF4A5568);
+  Color get _border =>
+      (_isDark ? Colors.white : Colors.black).withValues(alpha: 0.08);
+
+  static const _cyan   = Color(0xFF00E5FF);
+  static const _purple = Color(0xFF7C4DFF);
+  static const _amber  = Color(0xFFFFAB40);
+  static const _green  = Color(0xFF00C853);
+  static const _red    = Color(0xFFEF5350);
+
   @override
   void initState() {
     super.initState();
+    _entryCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
+    _fadeAnim =
+        CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOutCubic);
+    _slideAnim =
+        Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
+            .animate(CurvedAnimation(
+            parent: _entryCtrl, curve: Curves.easeOutCubic));
+
     loadEvent();
     _checkUserRole();
   }
@@ -45,18 +78,22 @@ class _EventDetailsPageState extends State<EventDetailsPage> {
   @override
   void dispose() {
     _timer?.cancel();
+    _entryCtrl.dispose();
     super.dispose();
   }
 
+  // ─── Data loaders ─────────────────────────────────────────────────────────
   Future<void> _checkUserRole() async {
     final user = supabase.auth.currentUser;
-    if (user != null) {
-      final data = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .maybeSingle();
-      if (mounted) setState(() => userRole = data?['role']?.toString().toLowerCase());
+    if (user == null) return;
+    final data = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+    if (mounted) {
+      setState(
+              () => userRole = data?['role']?.toString().toLowerCase());
     }
   }
 
@@ -93,7 +130,10 @@ class _EventDetailsPageState extends State<EventDetailsPage> {
           .eq('id', widget.eventId)
           .maybeSingle();
       if (e == null) {
-        setState(() { error = SC.tr('eventNotFound'); loading = false; });
+        setState(() {
+          error = SC.tr('eventNotFound');
+          loading = false;
+        });
         return;
       }
       final imgs = await supabase
@@ -101,12 +141,13 @@ class _EventDetailsPageState extends State<EventDetailsPage> {
           .select()
           .eq('event_id', widget.eventId);
 
-      event   = Map<String, dynamic>.from(e);
+      event = Map<String, dynamic>.from(e);
       gallery = List<Map<String, dynamic>>.from(imgs);
 
       _setupMapLocation();
-      setupCountdown();
+      _setupCountdown();
       await _checkUserRegistration();
+      _entryCtrl.forward();
     } catch (_) {
       error = SC.tr('failedLoadEvent');
     } finally {
@@ -122,282 +163,591 @@ class _EventDetailsPageState extends State<EventDetailsPage> {
       _markers = [
         Marker(
           point: _eventLocation!,
-          width: 80, height: 80,
-          child: const Icon(Icons.location_on, size: 50, color: Colors.redAccent),
-        )
+          width: 60,
+          height: 60,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _cyan.withValues(alpha: 0.2),
+              border: Border.all(color: _cyan, width: 2),
+            ),
+            child: const Icon(Icons.location_on_rounded,
+                color: _cyan, size: 26),
+          ),
+        ),
       ];
     }
   }
 
-  void setupCountdown() {
-    final start = DateTime.parse(event!['start_datetime']).toLocal();
+  void _setupCountdown() {
+    final start =
+    DateTime.parse(event!['start_datetime']).toLocal();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       final diff = start.difference(DateTime.now());
       if (!mounted) return;
-      setState(() => remaining = diff.isNegative ? Duration.zero : diff);
+      setState(
+              () => remaining = diff.isNegative ? Duration.zero : diff);
     });
   }
 
-  Map<String, dynamic> _getPaymentStatusInfo(String? status) {
-    switch (status) {
-      case 'verified':
-        return {
-          'label': SC.tr('paymentVerified'),
-          'sublabel': SC.tr('regConfirmedMsg'),
-          'icon': Icons.verified_rounded,
-          'color': Colors.greenAccent,
-          'bgColor': Colors.green.withOpacity(0.12),
-          'borderColor': Colors.green.withOpacity(0.4),
-        };
-      case 'rejected':
-        return {
-          'label': SC.tr('paymentRejectedMsg'),
-          'sublabel': SC.tr('contactAdmin'),
-          'icon': Icons.cancel_rounded,
-          'color': Colors.redAccent,
-          'bgColor': Colors.red.withOpacity(0.12),
-          'borderColor': Colors.red.withOpacity(0.4),
-        };
-      default:
-        return {
-          'label': SC.tr('paymentPending'),
-          'sublabel': SC.tr('pendingVerification'),
-          'icon': Icons.hourglass_top_rounded,
-          'color': Colors.orangeAccent,
-          'bgColor': Colors.orange.withOpacity(0.12),
-          'borderColor': Colors.orange.withOpacity(0.4),
-        };
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+  String _formatDate(String dt) {
+    final d = DateTime.parse(dt).toLocal();
+    const months = [
+      'Jan','Feb','Mar','Apr','May','Jun',
+      'Jul','Aug','Sep','Oct','Nov','Dec'
+    ];
+    final h = d.hour % 12 == 0 ? 12 : d.hour % 12;
+    final m = d.minute.toString().padLeft(2, '0');
+    final ap = d.hour >= 12 ? 'PM' : 'AM';
+    return '${d.day} ${months[d.month - 1]} ${d.year} • $h:$m $ap';
+  }
+
+  String _countdownText(Duration d) {
+    if (d == Duration.zero) return SC.tr('eventStarted');
+    return '${d.inDays}d  ${d.inHours % 24}h  '
+        '${d.inMinutes % 60}m  ${d.inSeconds % 60}s';
+  }
+
+  Future<void> _openMap() async {
+    final lat = event!['latitude'];
+    final lng = event!['longitude'];
+    if (lat == null || lng == null) return;
+    final url = Uri.parse(
+        'https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
     }
   }
 
+  _PaymentInfo _paymentInfo(String? status) {
+    switch (status) {
+      case 'verified':
+        return _PaymentInfo(
+          label: SC.tr('paymentVerified'),
+          sublabel: SC.tr('regConfirmedMsg'),
+          icon: Icons.verified_rounded,
+          color: _green,
+          bg: _green.withValues(alpha: 0.08),
+          border: _green.withValues(alpha: 0.3),
+        );
+      case 'rejected':
+        return _PaymentInfo(
+          label: SC.tr('paymentRejectedMsg'),
+          sublabel: SC.tr('contactAdmin'),
+          icon: Icons.cancel_rounded,
+          color: _red,
+          bg: _red.withValues(alpha: 0.08),
+          border: _red.withValues(alpha: 0.3),
+        );
+      default:
+        return _PaymentInfo(
+          label: SC.tr('paymentPending'),
+          sublabel: SC.tr('pendingVerification'),
+          icon: Icons.hourglass_top_rounded,
+          color: _amber,
+          bg: _amber.withValues(alpha: 0.08),
+          border: _amber.withValues(alpha: 0.3),
+        );
+    }
+  }
+
+  // ─── BUILD ────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<String>(
       valueListenable: SC.themeModeNotifier,
-      builder: (context, _, __) => ValueListenableBuilder<String>(
+      builder: (_, __, ___) => ValueListenableBuilder<String>(
         valueListenable: SC.languageNotifier,
-        builder: (context, __, ___) => _buildPage(),
+        builder: (_, __, ___) => _scaffold(),
       ),
     );
   }
 
-  Widget _buildPage() {
-    final isDark      = SC.isDark;
-    final textColor   = isDark ? Colors.white : const Color(0xFF1A2332);
-    final subTextColor = isDark ? Colors.white70 : const Color(0xFF4A5568);
-    final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.07)
-        : Colors.black.withValues(alpha: 0.08);
-
+  Widget _scaffold() {
     if (loading) {
       return AnnotatedRegion<SystemUiOverlayStyle>(
-        value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        value: _isDark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
         child: Scaffold(
-          backgroundColor: isDark ? SC.bgStart : const Color(0xFFF0F4FF),
-          body: Center(child: CircularProgressIndicator(color: SC.cyan)),
+          backgroundColor: _bg,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _cyan.withValues(alpha: 0.1),
+                    border: Border.all(
+                        color: _cyan.withValues(alpha: 0.4)),
+                  ),
+                  child: const Icon(Icons.event_rounded,
+                      color: _cyan, size: 28),
+                ),
+                const SizedBox(height: 16),
+                Text(SC.tr('loading'),
+                    style: TextStyle(
+                        color: _textSub.withValues(alpha: 0.6),
+                        fontSize: 13)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (error != null || event == null) {
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: _isDark
+            ? SystemUiOverlayStyle.light
+            : SystemUiOverlayStyle.dark,
+        child: Scaffold(
+          backgroundColor: _bg,
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _red.withValues(alpha: 0.1),
+                    border: Border.all(
+                        color: _red.withValues(alpha: 0.3)),
+                  ),
+                  child: const Icon(Icons.event_busy_rounded,
+                      color: _red, size: 30),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  error ?? SC.tr('eventNotFound'),
+                  style: TextStyle(
+                      color: _textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _border),
+                    ),
+                    child: Text(SC.tr('goBack'),
+                        style: TextStyle(
+                            color: _textPrimary,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      value:
+      _isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       child: Scaffold(
         extendBodyBehindAppBar: true,
-        backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          leading: IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: borderColor),
-              ),
-              child: Icon(Icons.arrow_back_ios_new, color: textColor, size: 18),
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ),
-        body: Stack(
-          children: [
-            Container(
-                width: double.infinity,
-                height: double.infinity,
-                decoration: BoxDecoration(gradient: SC.currentGradient)),
-            SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              child: Column(
-                children: [
-                  _buildHeroBanner(isDark),
-                  _buildDetailsContent(isDark, textColor, subTextColor, borderColor),
+        backgroundColor: _bg,
+        body: Stack(children: [
+          // Page bg gradient
+          Container(
+            decoration: BoxDecoration(
+              gradient: _isDark
+                  ? const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFF060D1F), Color(0xFF0A0F1E)],
+              )
+                  : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFF0F4FF),
+                  Color(0xFFE8EFFF),
+                  Color(0xFFEFF6FF),
                 ],
               ),
             ),
-            _buildStickyBottomSection(isDark, textColor),
-          ],
-        ),
+          ),
+
+          FadeTransition(
+            opacity: _fadeAnim,
+            child: SlideTransition(
+              position: _slideAnim,
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  _heroBanner(),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 140),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _infoCard(),
+                          if (!checkingRegistration &&
+                              userRegistration != null) ...[
+                            const SizedBox(height: 4),
+                            _registrationCard(),
+                          ],
+                          if (userRole == 'admin') ...[
+                            const SizedBox(height: 4),
+                            _adminTile(),
+                          ],
+                          const SizedBox(height: 20),
+                          _sectionLabel(SC.tr('aboutEvent')),
+                          const SizedBox(height: 10),
+                          Text(
+                            event!['full_description'] ??
+                                SC.tr('noDescription'),
+                            style: TextStyle(
+                              color: _textSub,
+                              fontSize: 14,
+                              height: 1.7,
+                            ),
+                          ),
+                          if (_eventLocation != null) ...[
+                            const SizedBox(height: 24),
+                            _sectionLabel(SC.tr('mapLocation')),
+                            const SizedBox(height: 10),
+                            _mapSection(),
+                            const SizedBox(height: 10),
+                            _mapsButton(),
+                          ],
+                          if (gallery.isNotEmpty) ...[
+                            const SizedBox(height: 24),
+                            _sectionLabel(SC.tr('gallery')),
+                            const SizedBox(height: 10),
+                            _galleryRow(),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Sticky bottom CTA
+          _bottomCta(),
+        ]),
       ),
     );
   }
 
-  Widget _buildHeroBanner(bool isDark) {
+  // ─── HERO SLIVER ──────────────────────────────────────────────────────────
+  SliverAppBar _heroBanner() {
     final banner = event!['banner_url'];
-    return Stack(
-      children: [
-        Hero(
-          tag: 'event_${widget.eventId}',
+    final price = (event!['price'] ?? 0).toDouble();
+    final isFree = price == 0;
+
+    return SliverAppBar(
+      expandedHeight: 320,
+      pinned: true,
+      backgroundColor: _bg,
+      elevation: 0,
+      systemOverlayStyle:
+      SystemUiOverlayStyle.light,
+      leading: GestureDetector(
+        onTap: () => Navigator.pop(context),
+        child: Padding(
+          padding: const EdgeInsets.all(10),
           child: Container(
-            height: 350,
-            width: double.infinity,
             decoration: BoxDecoration(
-              image: banner != null
-                  ? DecorationImage(
-                  image: NetworkImage(banner), fit: BoxFit.cover)
-                  : null,
-              color: isDark ? Colors.grey.shade900 : Colors.grey.shade200,
+              shape: BoxShape.circle,
+              color: Colors.black.withValues(alpha: 0.35),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.2)),
             ),
-            child: banner == null
-                ? Icon(Icons.image, size: 100,
-                color: isDark ? Colors.white24 : Colors.black26)
-                : null,
+            child: const Icon(Icons.arrow_back_ios_new_rounded,
+                color: Colors.white, size: 14),
           ),
         ),
-        Container(
-          height: 350,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.black.withOpacity(0.3),
-                Colors.transparent,
-                isDark ? const Color(0xFF0F2027) : const Color(0xFFF0F4FF),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        collapseMode: CollapseMode.pin,
+        background: Stack(children: [
+          // Banner image / placeholder
+          Hero(
+            tag: 'event_${widget.eventId}',
+            child: Container(
+              width: double.infinity,
+              height: 320,
+              decoration: BoxDecoration(
+                color: _isDark
+                    ? const Color(0xFF0F1A30)
+                    : const Color(0xFFDDE8FF),
+                image: banner != null
+                    ? DecorationImage(
+                  image: NetworkImage(banner),
+                  fit: BoxFit.cover,
+                )
+                    : null,
+              ),
+              child: banner == null
+                  ? Center(
+                child: Icon(Icons.event_rounded,
+                    size: 80,
+                    color: _isDark
+                        ? Colors.white12
+                        : Colors.black12),
+              )
+                  : null,
+            ),
+          ),
+
+          // Gradient overlay
+          Container(
+            height: 320,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withValues(alpha: 0.25),
+                  Colors.transparent,
+                  (_isDark
+                      ? const Color(0xFF060D1F)
+                      : const Color(0xFFF0F4FF))
+                      .withValues(alpha: 0.97),
+                ],
+                stops: const [0.0, 0.45, 1.0],
+              ),
+            ),
+          ),
+
+          // Title + price badge at bottom
+          Positioned(
+            bottom: 0,
+            left: 16,
+            right: 16,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Price badge
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    color: isFree
+                        ? _green.withValues(alpha: 0.15)
+                        : _amber.withValues(alpha: 0.15),
+                    border: Border.all(
+                      color: isFree
+                          ? _green.withValues(alpha: 0.4)
+                          : _amber.withValues(alpha: 0.4),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isFree
+                            ? Icons.celebration_rounded
+                            : Icons.payments_rounded,
+                        size: 11,
+                        color: isFree ? _green : _amber,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        isFree
+                            ? SC.tr('freeEntry').toUpperCase()
+                            : '৳ ${price.toInt()}',
+                        style: TextStyle(
+                          color: isFree ? _green : _amber,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // Event title
+                Text(
+                  event!['title'] ?? '',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    height: 1.2,
+                    letterSpacing: 0.2,
+                    shadows: [
+                      Shadow(
+                          color: Colors.black54,
+                          blurRadius: 12,
+                          offset: Offset(0, 2)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
               ],
             ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDetailsContent(bool isDark, Color textColor, Color subTextColor,
-      Color borderColor) {
-    final price = (event!['price'] ?? 0).toDouble();
-    final cardColor = isDark ? SC.cardBg : Colors.white;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _priceBadge(price),
-          const SizedBox(height: 15),
-          Text(event!['title'] ?? '',
-              style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  color: textColor,
-                  letterSpacing: 1)),
-          const SizedBox(height: 15),
-          _glassContainer(isDark, borderColor, cardColor,
-              child: Column(
-                children: [
-                  _infoTile(Icons.calendar_month, SC.tr('dateTime'),
-                      formatDate(event!['start_datetime']), textColor, subTextColor),
-                  Divider(color: borderColor),
-                  _infoTile(Icons.location_on, SC.tr('venue'),
-                      event!['venue'] ?? SC.tr('tbd'), textColor, subTextColor),
-                  if (remaining != null) ...[
-                    Divider(color: borderColor),
-                    _infoTile(Icons.timer_outlined, SC.tr('countdown'),
-                        countdownText(remaining!), textColor, subTextColor,
-                        color: SC.cyan),
-                  ],
-                ],
-              )),
-          if (!checkingRegistration) ...[
-            const SizedBox(height: 20),
-            _buildRegistrationStatusCard(isDark, textColor, borderColor),
-          ],
-          if (userRole == 'admin') ...[
-            const SizedBox(height: 15),
-            _adminAction(textColor),
-          ],
-          const SizedBox(height: 25),
-          Text(SC.tr('aboutEvent').toUpperCase(),
-              style: TextStyle(color: SC.cyan, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-          const SizedBox(height: 10),
-          Text(
-            event!['full_description'] ?? SC.tr('noDescription'),
-            style: TextStyle(
-                color: subTextColor, fontSize: 15, height: 1.6),
-          ),
-          const SizedBox(height: 25),
-          if (_eventLocation != null)
-            _buildMapSection(isDark, textColor, borderColor),
-          const SizedBox(height: 25),
-          if (gallery.isNotEmpty)
-            _buildGallery(textColor),
-          const SizedBox(height: 20),
-          if (_eventLocation != null)
-            _glassButton(
-              isDark: isDark,
-              borderColor: borderColor,
-              icon: Icons.map_outlined,
-              label: SC.tr('openGoogleMaps').toUpperCase(),
-              onTap: openMap,
-            ),
-          const SizedBox(height: 130),
-        ],
+        ]),
       ),
     );
   }
 
-  Widget _buildRegistrationStatusCard(
-      bool isDark, Color textColor, Color borderColor) {
-    if (userRegistration == null) return const SizedBox.shrink();
-    final paymentStatus = userRegistration!['payment_status'] as String?;
-    final isFree  = (event!['price'] ?? 0) == 0;
-    final info    = _getPaymentStatusInfo(paymentStatus);
-
-    final Color statusColor  = info['color'] as Color;
-    final Color bgColor      = info['bgColor'] as Color;
-    final Color bdrColor     = info['borderColor'] as Color;
-    final IconData icon      = info['icon'] as IconData;
-    final String label       = info['label'] as String;
-    final String sublabel    = info['sublabel'] as String;
-
-    final txId         = userRegistration!['transaction_id'];
-    final payNum       = userRegistration!['payment_number'];
-    final screenshotUrl = userRegistration!['payment_screenshot_url'];
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: bdrColor, width: 1.5),
+  // ─── INFO CARD (date, venue, countdown) ──────────────────────────────────
+  Widget _infoCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: _card,
+        border: Border.all(color: _border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _isDark ? 0.25 : 0.06),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
           ),
+        ],
+      ),
+      child: Column(children: [
+        _infoRow(
+          icon: Icons.calendar_month_rounded,
+          iconColor: _cyan,
+          label: SC.tr('dateTime'),
+          value: _formatDate(event!['start_datetime']),
+          isFirst: true,
+        ),
+        _divider(),
+        _infoRow(
+          icon: Icons.location_on_rounded,
+          iconColor: _purple,
+          label: SC.tr('venue'),
+          value: event!['venue'] ?? SC.tr('tbd'),
+        ),
+        if (remaining != null) ...[
+          _divider(),
+          _infoRow(
+            icon: Icons.timer_outlined,
+            iconColor: _amber,
+            label: SC.tr('countdown'),
+            value: _countdownText(remaining!),
+            valueColor: _amber,
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Widget _infoRow({
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+    Color? valueColor,
+    bool isFirst = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: iconColor.withValues(alpha: 0.1),
+            border: Border.all(
+                color: iconColor.withValues(alpha: 0.2)),
+          ),
+          child: Icon(icon, color: iconColor, size: 18),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: _textSub.withValues(alpha: 0.5),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                value,
+                style: TextStyle(
+                  color: valueColor ?? _textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _divider() =>
+      Divider(color: _border, height: 1, thickness: 0.5,
+          indent: 16, endIndent: 16);
+
+  // ─── REGISTRATION STATUS CARD ─────────────────────────────────────────────
+  Widget _registrationCard() {
+    final paymentStatus =
+    userRegistration!['payment_status'] as String?;
+    final isFree = (event!['price'] ?? 0) == 0;
+    final info = _paymentInfo(paymentStatus);
+
+    final txId = userRegistration!['transaction_id'];
+    final payNum = userRegistration!['payment_number'];
+    final screenshotUrl =
+    userRegistration!['payment_screenshot_url'];
+
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        color: info.bg,
+        border: Border.all(color: info.border, width: 1.5),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header
+                Row(children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    width: 46,
+                    height: 46,
                     decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(13),
+                      color: info.color.withValues(alpha: 0.15),
+                      border: Border.all(
+                          color: info.color.withValues(alpha: 0.3)),
                     ),
-                    child: Icon(icon, color: statusColor, size: 24),
+                    child: Icon(info.icon,
+                        color: info.color, size: 22),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -406,373 +756,234 @@ class _EventDetailsPageState extends State<EventDetailsPage> {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 3),
+                              horizontal: 9, vertical: 3),
                           decoration: BoxDecoration(
-                            color: SC.cyan.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: SC.cyan.withOpacity(0.3)),
+                            borderRadius: BorderRadius.circular(7),
+                            color: _cyan.withValues(alpha: 0.1),
+                            border: Border.all(
+                                color: _cyan.withValues(alpha: 0.28)),
                           ),
-                          child: Text(SC.tr('registered').toUpperCase(),
-                              style: TextStyle(
-                                  color: SC.cyan,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1)),
+                          child: Text(
+                            SC.tr('registered').toUpperCase(),
+                            style: const TextStyle(
+                              color: _cyan,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1,
+                            ),
+                          ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(label,
-                            style: TextStyle(
-                                color: statusColor,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 15)),
-                        Text(sublabel,
-                            style: TextStyle(
-                                color: statusColor.withOpacity(0.7),
-                                fontSize: 12)),
+                        const SizedBox(height: 5),
+                        Text(
+                          info.label,
+                          style: TextStyle(
+                            color: info.color,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          info.sublabel,
+                          style: TextStyle(
+                            color: info.color.withValues(alpha: 0.65),
+                            fontSize: 11,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ],
-              ),
-              if (isFree) ...[
-                const SizedBox(height: 14),
-                _statusDivider(),
-                const SizedBox(height: 12),
-                Row(children: [
-                  const Icon(Icons.check_circle_rounded,
-                      color: Colors.greenAccent, size: 16),
-                  const SizedBox(width: 8),
-                  Text(SC.tr('regSuccessMsg'),
-                      style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 13)),
                 ]),
-              ],
-              if (!isFree) ...[
-                const SizedBox(height: 16),
-                _statusDivider(),
-                const SizedBox(height: 14),
-                if (payNum != null)
-                  _detailRow(Icons.phone_android_outlined,
-                      SC.tr('paymentNumber'), payNum.toString(), textColor),
-                if (txId != null)
-                  _detailRow(Icons.receipt_long_outlined,
-                      SC.tr('transactionId'), txId.toString(), textColor),
-                if (screenshotUrl != null) ...[
-                  const SizedBox(height: 14),
-                  GestureDetector(
-                    onTap: () => _showScreenshotDialog(screenshotUrl.toString()),
-                    child: Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(screenshotUrl.toString(),
-                              width: 60, height: 60, fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                  width: 60, height: 60,
-                                  color: Colors.white10,
-                                  child: const Icon(Icons.image_outlined,
-                                      color: Colors.white38))),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(SC.tr('payScreenshot'),
-                                  style: TextStyle(
-                                      color: textColor,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13)),
-                              Text(SC.tr('tapToView'),
-                                  style: TextStyle(
-                                      color: textColor.withValues(alpha: 0.4),
-                                      fontSize: 11)),
-                            ],
-                          ),
-                        ),
-                        const Spacer(),
-                        Icon(Icons.open_in_full_rounded,
-                            color: SC.cyan.withOpacity(0.7), size: 18),
-                      ],
+
+                if (isFree) ...[
+                  _regDivider(),
+                  Row(children: [
+                    const Icon(Icons.check_circle_rounded,
+                        color: _green, size: 15),
+                    const SizedBox(width: 8),
+                    Text(
+                      SC.tr('regSuccessMsg'),
+                      style: TextStyle(
+                          color: _textPrimary.withValues(alpha: 0.8),
+                          fontSize: 13),
                     ),
-                  ),
+                  ]),
                 ],
-                const SizedBox(height: 16),
-                _statusDivider(),
-                const SizedBox(height: 12),
-                _buildStatusMessage(paymentStatus, textColor),
+
+                if (!isFree) ...[
+                  _regDivider(),
+                  if (payNum != null)
+                    _detailRow(Icons.phone_android_rounded,
+                        SC.tr('paymentNumber'), payNum.toString()),
+                  if (txId != null)
+                    _detailRow(Icons.receipt_long_rounded,
+                        SC.tr('transactionId'), txId.toString()),
+                  if (screenshotUrl != null) ...[
+                    const SizedBox(height: 10),
+                    GestureDetector(
+                      onTap: () =>
+                          _showScreenshot(screenshotUrl.toString()),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          color: Colors.white.withValues(alpha: 0.05),
+                          border: Border.all(
+                              color: Colors.white
+                                  .withValues(alpha: 0.1)),
+                        ),
+                        child: Row(children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.network(
+                              screenshotUrl.toString(),
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    color: Colors.white10,
+                                    child: const Icon(
+                                        Icons.broken_image_rounded,
+                                        color: Colors.white30),
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  SC.tr('payScreenshot'),
+                                  style: TextStyle(
+                                    color: _textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  SC.tr('tapToView'),
+                                  style: TextStyle(
+                                    color: _textSub
+                                        .withValues(alpha: 0.4),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.open_in_full_rounded,
+                              color: _cyan.withValues(alpha: 0.6),
+                              size: 17),
+                        ]),
+                      ),
+                    ),
+                  ],
+                  _regDivider(),
+                  _statusMessage(paymentStatus),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildStatusMessage(String? status, Color textColor) {
-    switch (status) {
-      case 'verified':
-        return Row(children: [
-          const Icon(Icons.celebration_rounded, color: Colors.greenAccent, size: 16),
-          const SizedBox(width: 8),
-          Expanded(child: Text(SC.tr('verifiedWelcome'),
-              style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 13))),
-        ]);
-      case 'rejected':
-        return Row(children: [
-          const Icon(Icons.info_outline, color: Colors.redAccent, size: 16),
-          const SizedBox(width: 8),
-          Expanded(child: Text(SC.tr('rejectedMsg'),
-              style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 13))),
-        ]);
-      default:
-        return Row(children: [
-          const Icon(Icons.info_outline, color: Colors.orangeAccent, size: 16),
-          const SizedBox(width: 8),
-          Expanded(child: Text(SC.tr('pendingMsg'),
-              style: TextStyle(color: textColor.withValues(alpha: 0.8), fontSize: 13))),
-        ]);
-    }
-  }
-
-  Widget _detailRow(IconData icon, String label, String value, Color textColor) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(children: [
-        Icon(icon, color: textColor.withValues(alpha: 0.4), size: 16),
-        const SizedBox(width: 10),
-        Text('$label: ',
-            style: TextStyle(
-                color: textColor.withValues(alpha: 0.5),
-                fontSize: 12, fontWeight: FontWeight.w600)),
-        Expanded(
-          child: Text(value,
-              style: TextStyle(
-                  color: textColor,
-                  fontSize: 13, fontWeight: FontWeight.w700)),
-        ),
-      ]),
-    );
-  }
-
-  Widget _statusDivider() => Container(
-    height: 1,
-    decoration: BoxDecoration(
-      gradient: LinearGradient(colors: [
-        Colors.transparent,
-        Colors.white.withOpacity(0.15),
-        Colors.transparent,
-      ]),
+  Widget _regDivider() => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 14),
+    child: Container(
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [
+          Colors.transparent,
+          Colors.white.withValues(alpha: 0.12),
+          Colors.transparent,
+        ]),
+      ),
     ),
   );
 
-  void _showScreenshotDialog(String url) {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black87,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Image.network(url, fit: BoxFit.contain)),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(color: Colors.white.withOpacity(0.2)),
-                ),
-                child: Text(SC.tr('close').toUpperCase(),
-                    style: const TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
+  Widget _detailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(children: [
+        Icon(icon,
+            color: _textSub.withValues(alpha: 0.4), size: 15),
+        const SizedBox(width: 10),
+        Text(
+          '$label: ',
+          style: TextStyle(
+            color: _textSub.withValues(alpha: 0.5),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(
+              color: _textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ]),
     );
   }
 
-  Widget _buildStickyBottomSection(bool isDark, Color textColor) {
-    final bool isClosed         = remaining == Duration.zero;
-    final bool alreadyRegistered = userRegistration != null;
-    final paymentStatus         = userRegistration?['payment_status'] as String?;
-    final bool isVerified        = paymentStatus == 'verified';
-    final bool isPending         = paymentStatus == 'pending';
-    final bool isRejected        = paymentStatus == 'rejected';
-    final bool isFree            = (event!['price'] ?? 0) == 0;
-
-    Color btnColor;
-    String btnText;
-    VoidCallback? btnOnPressed;
-    IconData btnIcon;
-
-    if (alreadyRegistered) {
-      if (isFree || isVerified) {
-        btnColor      = Colors.greenAccent;
-        btnText       = SC.tr('regConfirmed').toUpperCase();
-        btnIcon       = Icons.check_circle_rounded;
-        btnOnPressed  = null;
-      } else if (isPending) {
-        btnColor      = Colors.orangeAccent;
-        btnText       = SC.tr('paymentPending').toUpperCase();
-        btnIcon       = Icons.hourglass_top_rounded;
-        btnOnPressed  = null;
-      } else if (isRejected) {
-        btnColor      = Colors.redAccent;
-        btnText       = SC.tr('paymentRejected').toUpperCase();
-        btnIcon       = Icons.cancel_rounded;
-        btnOnPressed  = null;
-      } else {
-        btnColor      = Colors.grey;
-        btnText       = SC.tr('alreadyRegistered').toUpperCase();
-        btnIcon       = Icons.how_to_reg_rounded;
-        btnOnPressed  = null;
-      }
-    } else if (isClosed) {
-      btnColor      = Colors.grey;
-      btnText       = SC.tr('registrationClosed').toUpperCase();
-      btnIcon       = Icons.lock_outline_rounded;
-      btnOnPressed  = null;
-    } else {
-      btnColor      = SC.cyan;
-      btnText       = SC.tr('registerNow').toUpperCase();
-      btnIcon       = Icons.app_registration_rounded;
-      btnOnPressed  = () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => EventRegisterPage(
-            eventId: event!['id'],
-            price: (event!['price'] ?? 0).toDouble(),
-          ),
-        ),
-      ).then((_) => _checkUserRegistration());
+  Widget _statusMessage(String? status) {
+    IconData icon;
+    Color color;
+    String text;
+    switch (status) {
+      case 'verified':
+        icon = Icons.celebration_rounded;
+        color = _green;
+        text = SC.tr('verifiedWelcome');
+        break;
+      case 'rejected':
+        icon = Icons.info_outline_rounded;
+        color = _red;
+        text = SC.tr('rejectedMsg');
+        break;
+      default:
+        icon = Icons.info_outline_rounded;
+        color = _amber;
+        text = SC.tr('pendingMsg');
     }
-
-    return Positioned(
-      bottom: 0, left: 0, right: 0,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.transparent,
-              (isDark ? SC.bgStart : const Color(0xFFF0F4FF)).withOpacity(0.85),
-              isDark ? SC.bgStart : const Color(0xFFF0F4FF),
-            ],
-          ),
-        ),
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: btnColor,
-            foregroundColor: const Color(0xFF0F2027),
-            disabledBackgroundColor: btnColor.withOpacity(0.7),
-            disabledForegroundColor: const Color(0xFF0F2027).withOpacity(0.7),
-            padding: const EdgeInsets.all(18),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
-            elevation: btnOnPressed != null ? 10 : 0,
-            shadowColor: btnColor.withOpacity(0.3),
-          ),
-          onPressed: btnOnPressed,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(btnIcon, size: 20),
-              const SizedBox(width: 10),
-              Text(btnText,
-                  style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1)),
-            ],
-          ),
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: color.withValues(alpha: 0.06),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
-    );
-  }
-
-  Widget _buildMapSection(bool isDark, Color textColor, Color borderColor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(SC.tr('mapLocation').toUpperCase(),
-            style: TextStyle(color: SC.cyan, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-        const SizedBox(height: 15),
-        Container(
-          height: 250,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: borderColor),
-            boxShadow: [
-              BoxShadow(color: SC.cyan.withOpacity(0.1), blurRadius: 20, spreadRadius: 2)
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: _eventLocation!,
-                initialZoom: 15,
-                interactionOptions: const InteractionOptions(
-                    flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
-              ),
-              children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.css',
-                ),
-                MarkerLayer(markers: _markers),
-              ],
+      child: Row(children: [
+        Icon(icon, color: color, size: 15),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              color: _textPrimary.withValues(alpha: 0.8),
+              fontSize: 12,
+              height: 1.4,
             ),
           ),
         ),
-        const SizedBox(height: 15),
-      ],
+      ]),
     );
   }
 
-  Widget _buildGallery(Color textColor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(SC.tr('gallery').toUpperCase(),
-            style: TextStyle(color: SC.cyan, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-        const SizedBox(height: 15),
-        SizedBox(
-          height: 150,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: gallery.length,
-            itemBuilder: (context, index) => Container(
-              margin: const EdgeInsets.only(right: 15),
-              width: 220,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                image: DecorationImage(
-                  image: NetworkImage(gallery[index]['image_url']),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _adminAction(Color textColor) {
-    return InkWell(
+  // ─── ADMIN TILE ───────────────────────────────────────────────────────────
+  Widget _adminTile() {
+    return GestureDetector(
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
@@ -784,152 +995,354 @@ class _EventDetailsPageState extends State<EventDetailsPage> {
         ),
       ),
       child: Container(
+        margin: const EdgeInsets.only(top: 14),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [
-            SC.purple.withOpacity(0.3),
-            SC.blue.withOpacity(0.3)
-          ]),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white24),
+          color: _purple.withValues(alpha: 0.08),
+          border: Border.all(color: _purple.withValues(alpha: 0.28)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.admin_panel_settings, color: textColor),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _purple.withValues(alpha: 0.15),
+                border: Border.all(
+                    color: _purple.withValues(alpha: 0.3)),
+              ),
+              child: const Icon(Icons.admin_panel_settings_rounded,
+                  color: _purple, size: 15),
+            ),
             const SizedBox(width: 10),
-            Text(SC.tr('viewRegistrations').toUpperCase(),
-                style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
+            Text(
+              SC.tr('viewRegistrations').toUpperCase(),
+              style: TextStyle(
+                color: _textPrimary,
+                fontWeight: FontWeight.w800,
+                fontSize: 12,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const Spacer(),
+            Icon(Icons.chevron_right_rounded,
+                color: _purple.withValues(alpha: 0.5), size: 18),
           ],
         ),
       ),
     );
   }
 
-  Widget _glassContainer(bool isDark, Color borderColor, Color cardColor,
-      {required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor),
+  // ─── SECTION LABEL ────────────────────────────────────────────────────────
+  Widget _sectionLabel(String text) {
+    return Row(children: [
+      Container(
+        width: 3,
+        height: 14,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(2),
+          color: _cyan,
+        ),
       ),
-      child: child,
+      const SizedBox(width: 8),
+      Text(
+        text.toUpperCase(),
+        style: const TextStyle(
+          color: _cyan,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.5,
+        ),
+      ),
+    ]);
+  }
+
+  // ─── MAP ──────────────────────────────────────────────────────────────────
+  Widget _mapSection() {
+    return Container(
+      height: 230,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _border),
+        boxShadow: [
+          BoxShadow(
+            color: _cyan.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: FlutterMap(
+          mapController: _mapController,
+          options: MapOptions(
+            initialCenter: _eventLocation!,
+            initialZoom: 15,
+            interactionOptions: const InteractionOptions(
+                flags:
+                InteractiveFlag.all & ~InteractiveFlag.rotate),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate:
+              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.example.css',
+            ),
+            MarkerLayer(markers: _markers),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _infoTile(IconData icon, String title, String subtitle,
-      Color textColor, Color subTextColor, {Color? color}) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-              color: (color ?? textColor).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12)),
-          child: Icon(icon, color: color ?? subTextColor, size: 20),
+  Widget _mapsButton() {
+    return GestureDetector(
+      onTap: _openMap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          color: (_isDark ? Colors.white : Colors.black)
+              .withValues(alpha: 0.04),
+          border: Border.all(color: _border),
         ),
-        const SizedBox(width: 15),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title,
-                  style: TextStyle(
-                      color: subTextColor.withValues(alpha: 0.6),
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold)),
-              Text(subtitle,
-                  style: TextStyle(
-                      color: color ?? textColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600)),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.map_outlined,
+              color: _textSub.withValues(alpha: 0.55), size: 17),
+          const SizedBox(width: 8),
+          Text(
+            SC.tr('openGoogleMaps').toUpperCase(),
+            style: TextStyle(
+              color: _textSub,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+              letterSpacing: 0.6,
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  // ─── GALLERY ──────────────────────────────────────────────────────────────
+  Widget _galleryRow() {
+    return SizedBox(
+      height: 140,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: gallery.length,
+        itemBuilder: (_, i) => Container(
+          margin: EdgeInsets.only(right: i < gallery.length - 1 ? 12 : 0),
+          width: 200,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _border),
+            image: DecorationImage(
+              image: NetworkImage(gallery[i]['image_url']),
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── SCREENSHOT DIALOG ────────────────────────────────────────────────────
+  void _showScreenshot(String url) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Image.network(url, fit: BoxFit.contain),
+            ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 28, vertical: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(30),
+                  color: Colors.white.withValues(alpha: 0.1),
+                  border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.2)),
+                ),
+                child: Text(
+                  SC.tr('close').toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── BOTTOM CTA ───────────────────────────────────────────────────────────
+  Widget _bottomCta() {
+    final isClosed = remaining == Duration.zero;
+    final registered = userRegistration != null;
+    final payStatus =
+    userRegistration?['payment_status'] as String?;
+    final isVerified = payStatus == 'verified';
+    final isPending = payStatus == 'pending';
+    final isRejected = payStatus == 'rejected';
+    final isFree = (event!['price'] ?? 0) == 0;
+
+    Color btnBg;
+    Color btnFg;
+    String btnText;
+    IconData btnIcon;
+    VoidCallback? onTap;
+    bool outlined = false;
+
+    if (registered) {
+      if (isFree || isVerified) {
+        btnBg = _green;
+        btnFg = const Color(0xFF003012);
+        btnText = SC.tr('regConfirmed').toUpperCase();
+        btnIcon = Icons.check_circle_rounded;
+        onTap = null;
+        outlined = true;
+      } else if (isPending) {
+        btnBg = _amber;
+        btnFg = const Color(0xFF2A1A00);
+        btnText = SC.tr('paymentPending').toUpperCase();
+        btnIcon = Icons.hourglass_top_rounded;
+        onTap = null;
+        outlined = true;
+      } else if (isRejected) {
+        btnBg = _red;
+        btnFg = Colors.white;
+        btnText = SC.tr('paymentRejected').toUpperCase();
+        btnIcon = Icons.cancel_rounded;
+        onTap = null;
+        outlined = true;
+      } else {
+        btnBg = _textSub.withValues(alpha: 0.25);
+        btnFg = _textSub;
+        btnText = SC.tr('alreadyRegistered').toUpperCase();
+        btnIcon = Icons.how_to_reg_rounded;
+        onTap = null;
+      }
+    } else if (isClosed) {
+      btnBg = _textSub.withValues(alpha: 0.2);
+      btnFg = _textSub.withValues(alpha: 0.5);
+      btnText = SC.tr('registrationClosed').toUpperCase();
+      btnIcon = Icons.lock_outline_rounded;
+      onTap = null;
+    } else {
+      btnBg = _cyan;
+      btnFg = const Color(0xFF001A26);
+      btnText = SC.tr('registerNow').toUpperCase();
+      btnIcon = Icons.app_registration_rounded;
+      onTap = () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EventRegisterPage(
+            eventId: event!['id'],
+            price: (event!['price'] ?? 0).toDouble(),
+          ),
+        ),
+      ).then((_) => _checkUserRegistration());
+    }
+
+    return Positioned(
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+            16, 20, 16, MediaQuery.of(context).padding.bottom + 16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              _bg.withValues(alpha: 0),
+              _bg.withValues(alpha: 0.88),
+              _bg,
             ],
           ),
         ),
-      ],
-    );
-  }
-
-  Widget _priceBadge(double price) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: price > 0
-            ? Colors.orange.withOpacity(0.2)
-            : Colors.green.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: price > 0 ? Colors.orange : Colors.green),
-      ),
-      child: Text(
-        price > 0 ? '৳ ${price.toInt()}' : SC.tr('freeEntry').toUpperCase(),
-        style: TextStyle(
-            color: price > 0 ? Colors.orange : Colors.greenAccent,
-            fontWeight: FontWeight.w900,
-            fontSize: 12),
-      ),
-    );
-  }
-
-  Widget _glassButton({
-    required bool isDark,
-    required Color borderColor,
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    final textColor = isDark ? Colors.white70 : const Color(0xFF4A5568);
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 15),
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.05)
-              : Colors.black.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: textColor.withValues(alpha: 0.6), size: 18),
-            const SizedBox(width: 10),
-            Text(label,
-                style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12)),
-          ],
+        child: GestureDetector(
+          onTap: onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            padding: const EdgeInsets.symmetric(vertical: 17),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              color: outlined ? btnBg.withValues(alpha: 0.12) : btnBg,
+              border: outlined
+                  ? Border.all(
+                  color: btnBg.withValues(alpha: 0.5), width: 1.5)
+                  : null,
+              boxShadow: onTap != null && !outlined
+                  ? [
+                BoxShadow(
+                  color: btnBg.withValues(alpha: 0.35),
+                  blurRadius: 20,
+                  offset: const Offset(0, 6),
+                ),
+              ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(btnIcon,
+                    color: outlined ? btnBg : btnFg, size: 20),
+                const SizedBox(width: 10),
+                Text(
+                  btnText,
+                  style: TextStyle(
+                    color: outlined ? btnBg : btnFg,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
+}
 
-  String formatDate(String dt) {
-    final d = DateTime.parse(dt).toLocal();
-    const months = [
-      'Jan','Feb','Mar','Apr','May','Jun',
-      'Jul','Aug','Sep','Oct','Nov','Dec'
-    ];
-    return '${d.day} ${months[d.month - 1]} ${d.year} • '
-        '${d.hour % 12 == 0 ? 12 : d.hour % 12}:'
-        '${d.minute.toString().padLeft(2, '0')} '
-        '${d.hour >= 12 ? 'PM' : 'AM'}';
-  }
+// ─── Data model ──────────────────────────────────────────────────────────────
+class _PaymentInfo {
+  final String label;
+  final String sublabel;
+  final IconData icon;
+  final Color color;
+  final Color bg;
+  final Color border;
 
-  String countdownText(Duration d) {
-    if (d == Duration.zero) return SC.tr('eventStarted');
-    return '${d.inDays}d ${d.inHours % 24}h ${d.inMinutes % 60}m ${d.inSeconds % 60}s';
-  }
-
-  void openMap() async {
-    final lat = event!['latitude'];
-    final lng = event!['longitude'];
-    if (lat == null || lng == null) return;
-    final url =
-    Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
-    if (await canLaunchUrl(url)) await launchUrl(url);
-  }
+  const _PaymentInfo({
+    required this.label,
+    required this.sublabel,
+    required this.icon,
+    required this.color,
+    required this.bg,
+    required this.border,
+  });
 }
