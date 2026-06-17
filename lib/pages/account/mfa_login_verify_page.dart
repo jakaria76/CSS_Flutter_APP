@@ -4,7 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../SettingsPage/settings_constants.dart';
 import '../../services/session_service.dart';
-import '../../services/auth_guard_service.dart'; // ✅ NEW
+import '../../services/auth_guard_service.dart';
+import '../../services/biometric_auth_service.dart'; // ✅ ADD
 
 class MFALoginVerifyPage extends StatefulWidget {
   final String email;
@@ -92,9 +93,13 @@ class _MFALoginVerifyPageState extends State<MFALoginVerifyPage>
       // ✅ Session save করো
       await SessionService.saveSession();
 
+      // ✅ FIX: MFA login সফল হলে fingerprint এর stored token refresh করো
+      // যাতে পরের বার fingerprint দিয়ে login করা যায়
+      await BiometricAuthService.refreshStoredToken();
+
       if (!mounted) return;
 
-      // ✅ AuthGuard চালু করো — admin block/delete হলে auto logout হবে
+      // ✅ AuthGuard চালু করো
       AuthGuardService.init(context);
 
       Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);

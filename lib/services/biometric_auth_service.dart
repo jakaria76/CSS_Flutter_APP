@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -12,17 +14,53 @@ class BiometricAuthService {
   static const String _keyEnabled      = 'fingerprint_enabled';
   static const String _keyRefreshToken = 'biometric_refresh_token';
 
-  // ── Device capability check ───────────────────────────────────────────────
+  static StreamSubscription<AuthState>? _authSub;
+  static bool _listenerAttached = false;
+
+  // ── Initialize ────────────────────────────────────────────────────────────
+  static void initialize() {
+    if (_listenerAttached) return;
+    _listenerAttached = true;
+
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen(
+          (data) async {
+        final event   = data.event;
+        final session = data.session;
+        if (session?.refreshToken == null) return;
+
+        if (event == AuthChangeEvent.tokenRefreshed ||
+            event == AuthChangeEvent.signedIn ||
+            event == AuthChangeEvent.initialSession) {
+          final enabled = await isFingerprintEnabled();
+          if (enabled) {
+            await _storage.write(
+                key: _keyRefreshToken, value: session!.refreshToken!);
+            _log('auto-sync: token updated via $event');
+          }
+        }
+      },
+      onError: (e) => _log('auth listener error: $e'),
+    );
+    _log('initialize: listener attached ✅');
+  }
+
+  static void disposeListener() {
+    _authSub?.cancel();
+    _authSub = null;
+    _listenerAttached = false;
+  }
+
+  // ── Device check ──────────────────────────────────────────────────────────
 
   static Future<bool> isBiometricAvailable() async {
     try {
       final canCheck    = await _auth.canCheckBiometrics;
       final isSupported = await _auth.isDeviceSupported();
       if (!canCheck || !isSupported) return false;
-
       final available = await _auth.getAvailableBiometrics();
       return available.isNotEmpty;
-    } on PlatformException {
+    } on PlatformException catch (e) {
+      _log('isBiometricAvailable error: ${e.message}');
       return false;
     }
   }
@@ -32,20 +70,36 @@ class BiometricAuthService {
   static Future<bool> enableFingerprint() async {
     try {
       final isAvailable = await isBiometricAvailable();
-      if (!isAvailable) return false;
+      if (!isAvailable) {
+        _log('enableFingerprint: not available');
+        return false;
+      }
 
       final authenticated = await _auth.authenticate(
         localizedReason: 'Scan your fingerprint to enable biometric login',
       );
-      if (!authenticated) return false;
+      if (!authenticated) {
+        _log('enableFingerprint: cancelled');
+        return false;
+      }
 
       final session = Supabase.instance.client.auth.currentSession;
-      if (session == null) return false;
+      final token   = session?.refreshToken;
 
-      await _storage.write(key: _keyRefreshToken, value: session.refreshToken);
+      if (token == null || token.isEmpty) {
+        _log('enableFingerprint: no refresh token in session');
+        return false;
+      }
+
+      await _storage.write(key: _keyRefreshToken, value: token);
       await _storage.write(key: _keyEnabled, value: 'true');
+      _log('enableFingerprint: success ✅');
       return true;
-    } on PlatformException {
+    } on PlatformException catch (e) {
+      _log('enableFingerprint PlatformException: ${e.message}');
+      return false;
+    } catch (e) {
+      _log('enableFingerprint error: $e');
       return false;
     }
   }
@@ -55,14 +109,23 @@ class BiometricAuthService {
   static Future<void> disableFingerprint() async {
     await _storage.delete(key: _keyEnabled);
     await _storage.delete(key: _keyRefreshToken);
+    _log('disableFingerprint: done');
   }
 
-  // ── Status ────────────────────────────────────────────────────────────────
+  // ── Status checks ─────────────────────────────────────────────────────────
 
   static Future<bool> isFingerprintEnabled() async {
     try {
-      final val = await _storage.read(key: _keyEnabled);
-      return val == 'true';
+      return await _storage.read(key: _keyEnabled) == 'true';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> hasStoredToken() async {
+    try {
+      final t = await _storage.read(key: _keyRefreshToken);
+      return t != null && t.isNotEmpty;
     } catch (_) {
       return false;
     }
@@ -73,10 +136,14 @@ class BiometricAuthService {
   static Future<AuthResponse?> loginWithFingerprint() async {
     try {
       final isAvailable = await isBiometricAvailable();
-      if (!isAvailable) return null;
+      if (!isAvailable) {
+        _log('loginWithFingerprint: not available');
+        return null;
+      }
 
       final token = await _storage.read(key: _keyRefreshToken);
-      if (token == null) {
+      if (token == null || token.isEmpty) {
+        _log('loginWithFingerprint: no stored token, disabling');
         await disableFingerprint();
         return null;
       }
@@ -84,37 +151,93 @@ class BiometricAuthService {
       final authenticated = await _auth.authenticate(
         localizedReason: 'Scan your fingerprint to login',
       );
-      if (!authenticated) return null;
+      if (!authenticated) {
+        _log('loginWithFingerprint: cancelled/mismatch');
+        return null;
+      }
 
-      final response = await Supabase.instance.client.auth.setSession(token);
+      _log('loginWithFingerprint: fingerprint matched!');
 
-      if (response.session?.refreshToken != null) {
-        await _storage.write(
-          key: _keyRefreshToken,
-          value: response.session!.refreshToken,
-        );
+      // ✅ FIX: App Lock Pattern - চেক করছি সেশন আগে থেকেই অ্যাক্টিভ আছে কিনা
+      final currentSession = Supabase.instance.client.auth.currentSession;
+
+      if (currentSession != null) {
+        _log('loginWithFingerprint: session already active, refreshing...');
+        // সেশন অ্যাক্টিভ থাকলে শুধু refresh করে ভেরিফাই করে নিচ্ছি
+        final response = await Supabase.instance.client.auth.refreshSession();
+        if (response.session != null && response.session!.refreshToken != null) {
+          await _storage.write(key: _keyRefreshToken, value: response.session!.refreshToken!);
+        }
+        return AuthResponse(session: response.session, user: response.user);
+      }
+
+      // যদি মেমরি থেকে সেশন ক্লিয়ার হয়ে গিয়ে থাকে, তবে সেভ করা টোকেন দিয়ে রিস্টোর হবে
+      _log('loginWithFingerprint: restoring session from token...');
+      final response = await Supabase.instance.client.auth
+          .setSession(token)
+          .timeout(const Duration(seconds: 15));
+
+      if (response.session == null || response.user == null) {
+        _log('loginWithFingerprint: null session, disabling');
+        await disableFingerprint();
+        return null;
+      }
+
+      // Rotated token save
+      final newToken = response.session!.refreshToken;
+      if (newToken != null && newToken.isNotEmpty) {
+        await _storage.write(key: _keyRefreshToken, value: newToken);
+        _log('loginWithFingerprint: success, rotated token saved ✅');
       }
 
       return response;
-    } on AuthException {
-      await disableFingerprint();
+
+    } on AuthException catch (e) {
+      _log('loginWithFingerprint AuthException: ${e.message}');
+
+      final msg = e.message.toLowerCase();
+      final isInvalid =
+          msg.contains('refresh_token_not_found') ||
+              msg.contains('refresh_token_already_used') ||
+              msg.contains('token_not_found') ||
+              msg.contains('invalid_grant') ||
+              msg.contains('invalid refresh token') ||
+              (msg.contains('refresh') && msg.contains('not found')) ||
+              (msg.contains('token') && msg.contains('revoked')) ||
+              msg.contains('session_not_found') ||
+              msg.contains('user_not_found');
+
+      if (isInvalid) {
+        _log('loginWithFingerprint: invalid token, disabling');
+        await disableFingerprint();
+      }
       return null;
-    } on PlatformException {
+
+    } on PlatformException catch (e) {
+      _log('loginWithFingerprint PlatformException: ${e.message}');
       return null;
-    } catch (_) {
+    } on TimeoutException {
+      _log('loginWithFingerprint: timeout, keeping token for retry');
+      return null;
+    } catch (e) {
+      _log('loginWithFingerprint error: $e');
       return null;
     }
   }
 
-  // ── Refresh stored token after OTP login ──────────────────────────────────
+  // ── Email/OTP/MFA login সফল হলে token refresh ────────────────────────────
 
   static Future<void> refreshStoredToken() async {
     final enabled = await isFingerprintEnabled();
     if (!enabled) return;
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session?.refreshToken != null) {
-      await _storage.write(
-          key: _keyRefreshToken, value: session!.refreshToken);
+    final token = Supabase.instance.client.auth.currentSession?.refreshToken;
+    if (token != null) {
+      await _storage.write(key: _keyRefreshToken, value: token);
+      _log('refreshStoredToken: updated ✅');
     }
+  }
+
+  static void _log(String msg) {
+    if (kDebugMode) debugPrint('[BiometricAuthService] $msg');
   }
 }

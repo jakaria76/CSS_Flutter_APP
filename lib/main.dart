@@ -15,6 +15,7 @@ import 'pages/SettingsPage/settings_constants.dart';
 
 // SERVICES
 import 'services/auth_guard_service.dart'; // ✅ NEW
+import 'services/biometric_auth_service.dart'; // ✅ NEW — fingerprint token auto-sync
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +36,14 @@ Future<void> main() async {
       authFlowType: AuthFlowType.pkce,
     ),
   );
+
+  // ================= BIOMETRIC TOKEN AUTO-SYNC =================
+  // Supabase এর autoRefreshToken ব্যাকগ্রাউন্ডে refresh token rotate করে।
+  // এই listener টা সেই rotation এর সাথে সাথে fingerprint এর জন্য সেভ করা
+  // token-ও আপডেট করে রাখে, যাতে fingerprint দিয়ে login করার সময় storage
+  // এ পুরনো/invalid token না থেকে যায়। Supabase.initialize() এর পরে,
+  // এবং app এর জীবনে একবারই কল করতে হয়।
+  BiometricAuthService.initialize();
 
   // ================= LOAD APP PREFERENCES =================
   await SC.loadAppPrefs();

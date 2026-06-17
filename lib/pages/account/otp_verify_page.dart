@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:css/services/session_service.dart';
-import 'package:css/services/auth_guard_service.dart'; // ✅ NEW
+import 'package:css/services/auth_guard_service.dart';
+import 'package:css/services/biometric_auth_service.dart'; // ✅ ADD
 
 class OtpVerifyPage extends StatefulWidget {
   final String email;
@@ -91,9 +92,13 @@ class _OtpVerifyPageState extends State<OtpVerifyPage>
       // ✅ Session save করো
       await SessionService.saveSession();
 
+      // ✅ FIX: OTP login সফল হলে fingerprint এর stored token refresh করো
+      // যাতে পরের বার fingerprint দিয়ে login করা যায়
+      await BiometricAuthService.refreshStoredToken();
+
       if (!mounted) return;
 
-      // ✅ AuthGuard চালু করো — admin block/delete হলে auto logout হবে
+      // ✅ AuthGuard চালু করো
       AuthGuardService.init(context);
 
       Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);

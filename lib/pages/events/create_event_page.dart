@@ -33,12 +33,19 @@ class _CreateEventPageState extends State<CreateEventPage> {
   final priceCtrl       = TextEditingController(text: '0');
   final locationDmsCtrl = TextEditingController();
 
+  // ✅ Payment number controllers
+  final bkashCtrl = TextEditingController();
+  final nagadCtrl = TextEditingController();
+
   DateTime? startDate;
   DateTime? endDate;
   bool isPublished = false;
   bool isFeatured  = false;
   bool loading     = false;
   String _loadingStep = '';
+
+  // ✅ price > 0 হলে true হবে, payment section show করার জন্য
+  bool get _hasPrice => (double.tryParse(priceCtrl.text.trim()) ?? 0) > 0;
 
   XFile? bannerImage;
   final List<XFile> galleryImages = [];
@@ -52,13 +59,22 @@ class _CreateEventPageState extends State<CreateEventPage> {
   void initState() {
     super.initState();
     _setInitialMarkerData(_selectedLocation);
+    // ✅ price পরিবর্তন হলে UI rebuild করার জন্য listener
+    priceCtrl.addListener(_onPriceChanged);
+  }
+
+  void _onPriceChanged() {
+    // setState কল করে payment section show/hide rebuild করানো
+    setState(() {});
   }
 
   @override
   void dispose() {
+    priceCtrl.removeListener(_onPriceChanged);
     titleCtrl.dispose(); tagCtrl.dispose(); shortDescCtrl.dispose();
     fullDescCtrl.dispose(); venueCtrl.dispose(); latCtrl.dispose();
     lngCtrl.dispose(); priceCtrl.dispose(); locationDmsCtrl.dispose();
+    bkashCtrl.dispose(); nagadCtrl.dispose();
     super.dispose();
   }
 
@@ -175,6 +191,15 @@ class _CreateEventPageState extends State<CreateEventPage> {
     try {
       final bannerUrl = await uploadBanner();
       setState(() => _loadingStep = SC.tr('savingEvent'));
+
+      // ✅ price থাকলে trimmed payment number, না থাকলে null
+      final bkashValue = _hasPrice && bkashCtrl.text.trim().isNotEmpty
+          ? bkashCtrl.text.trim()
+          : null;
+      final nagadValue = _hasPrice && nagadCtrl.text.trim().isNotEmpty
+          ? nagadCtrl.text.trim()
+          : null;
+
       final event = await supabase.from('events').insert({
         'title': titleCtrl.text.trim(),
         'tag': tagCtrl.text.trim(),
@@ -189,6 +214,8 @@ class _CreateEventPageState extends State<CreateEventPage> {
         'is_published': isPublished,
         'is_featured': isFeatured,
         'banner_url': bannerUrl,
+        'bkash_number': bkashValue,
+        'nagad_number': nagadValue,
       }).select().single();
 
       setState(() => _loadingStep = SC.tr('uploadingGallery'));
@@ -378,6 +405,78 @@ class _CreateEventPageState extends State<CreateEventPage> {
                               style: TextStyle(color: textColor),
                               decoration: inputStyle(SC.tr('ticketPrice'), Icons.payments_outlined)),
                         ]),
+
+                        // ✅ Price > 0 হলেই Payment Numbers section দেখাবে
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 280),
+                          child: _hasPrice
+                              ? Padding(
+                            key: const ValueKey('payment_section'),
+                            padding: const EdgeInsets.only(top: 25),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _sectionTitle(SC.tr('paymentInstructions')),
+                                _buildGlassCard(isDark, borderColor, cardColor, [
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    margin: const EdgeInsets.only(bottom: 15),
+                                    decoration: BoxDecoration(
+                                      color: SC.amber.withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                          color: SC.amber.withValues(alpha: 0.25)),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Icon(Icons.info_outline,
+                                            color: SC.amber, size: 18),
+                                        const SizedBox(width: 10),
+                                        Expanded(
+                                          child: Text(
+                                            SC.tr('paymentNumbersHint'),
+                                            style: TextStyle(
+                                                color: SC.amber
+                                                    .withValues(alpha: 0.9),
+                                                fontSize: 12,
+                                                height: 1.5),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  TextFormField(
+                                    controller: bkashCtrl,
+                                    keyboardType: TextInputType.phone,
+                                    style: TextStyle(color: textColor),
+                                    decoration: inputStyle(
+                                        SC.tr('bkashNumberLabel'),
+                                        Icons.account_balance_wallet)
+                                        .copyWith(
+                                        hintText:
+                                        SC.tr('paymentNumberHint')),
+                                  ),
+                                  const SizedBox(height: 15),
+                                  TextFormField(
+                                    controller: nagadCtrl,
+                                    keyboardType: TextInputType.phone,
+                                    style: TextStyle(color: textColor),
+                                    decoration: inputStyle(
+                                        SC.tr('nagadNumberLabel'),
+                                        Icons
+                                            .account_balance_wallet_outlined)
+                                        .copyWith(
+                                        hintText:
+                                        SC.tr('paymentNumberHint')),
+                                  ),
+                                ]),
+                              ],
+                            ),
+                          )
+                              : const SizedBox.shrink(key: ValueKey('empty')),
+                        ),
+
                         const SizedBox(height: 25),
                         _sectionTitle(SC.tr('descriptions')),
                         _buildGlassCard(isDark, borderColor, cardColor, [
@@ -700,3 +799,4 @@ class _CreateEventPageState extends State<CreateEventPage> {
     );
   }
 }
+

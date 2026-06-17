@@ -7,15 +7,17 @@ class CloudinaryService {
   static const String _cloudName    = "dgfyu4ex7";
   static const String _uploadPreset = "css_preset";
 
-  static const String folderProfiles   = 'css_app/profiles';
-  static const String folderEvents     = 'css_app/events';
-  static const String folderGallery    = 'css_app/gallery';
-  static const String folderBanners    = 'css_app/banners';
-  static const String folderPosts      = 'css_app/posts';
-  static const String folderVideos     = 'css_app/video_thumbnails';
-  static const String folderComplaints = 'css_app/complaints';
-  static const String folderNotices    = 'css_app/notices';
-  static const String folderPayments   = 'css_app/payments';
+  // ─── Folder Paths ─────────────────────────────────────────────
+  static const String folderProfiles              = 'css_app/profiles';
+  static const String folderEvents                = 'css_app/events';
+  static const String folderGallery               = 'css_app/gallery';
+  static const String folderBanners               = 'css_app/banners';
+  static const String folderPosts                 = 'css_app/posts';
+  static const String folderVideos                = 'css_app/video_thumbnails';
+  static const String folderComplaints            = 'css_app/complaints';
+  static const String folderNotices               = 'css_app/notices';
+  static const String folderPayments              = 'css_app/payments';
+  static const String folderCommunityApplications = 'css_app/community_applications'; // ✅ Fixed
 
   static final _cloudinary =
   CloudinaryPublic(_cloudName, _uploadPreset, cache: false);

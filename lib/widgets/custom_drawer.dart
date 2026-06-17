@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:css/pages/SettingsPage/settings_constants.dart';
-import 'package:css/services/auth_guard_service.dart'; // ✅ NEW
+import 'package:css/services/auth_guard_service.dart';
+import 'package:css/services/biometric_auth_service.dart';
 
 class CustomDrawer extends StatelessWidget {
   final int selectedIndex;
@@ -481,12 +482,20 @@ class CustomDrawer extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(15))),
               onPressed: () async {
-                // ✅ Guard আগে বন্ধ করো, তারপর logout
+                // ✅ Guard আগে বন্ধ করো
                 AuthGuardService.dispose();
-                await Supabase.instance.client.auth.signOut();
+
+                // ✅ FIX: App Lock Pattern
+                // Fingerprint অন থাকলে সার্ভার থেকে signOut করা যাবে না।
+                final isLocked = await BiometricAuthService.isFingerprintEnabled();
+                if (!isLocked) {
+                  await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+                }
+
                 if (context.mounted) {
+                  // ✅ /welcome-এর পরিবর্তে সরাসরি /login পেজে পাঠানো হচ্ছে
                   Navigator.pushNamedAndRemoveUntil(
-                      context, '/welcome', (route) => false);
+                      context, '/login', (route) => false);
                 }
               },
               child: Text(SC.tr('logout_title'),

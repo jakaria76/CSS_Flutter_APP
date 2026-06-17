@@ -6,7 +6,6 @@ import 'otp_verify_page.dart';
 import 'forgot_password_page.dart';
 import 'package:css/pages/account/mfa_login_verify_page.dart';
 import 'package:css/services/activity_logger.dart';
-import 'package:css/services/session_service.dart';
 import 'package:css/services/auth_guard_service.dart';
 import 'package:css/services/biometric_auth_service.dart';
 import 'dart:io' show Platform;
@@ -27,6 +26,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   bool _obscure             = true;
   bool _fingerprintEnabled  = false;
   bool _fingerprintLoading  = false;
+
+  // FIX: auto-trigger একবারের বেশি না হওয়ার জন্য flag
+  bool _autoTriggered       = false;
 
   late AnimationController _animCtrl;
   late AnimationController _pulseCtrl;
@@ -63,13 +65,24 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     _checkBiometric();
   }
 
-  /// শুধু enabled state চেক করে — button সবসময় দেখাবে
+  /// enabled + stored token দুটোই check করি।
+  /// শুধু enabled থাকলেই auto-trigger হবে না —
+  /// token আসলেই আছে কিনা verify করে তবেই auto চেষ্টা করব।
   Future<void> _checkBiometric() async {
-    final enabled = await BiometricAuthService.isFingerprintEnabled();
-    if (mounted) {
-      setState(() => _fingerprintEnabled = enabled);
-      if (enabled) {
-        await Future.delayed(const Duration(milliseconds: 600));
+    final enabled      = await BiometricAuthService.isFingerprintEnabled();
+    final hasToken     = await BiometricAuthService.hasStoredToken();
+
+    if (!mounted) return;
+
+    // enabled এবং token দুটোই থাকলে UI তে active দেখাবে
+    final isReady = enabled && hasToken;
+    setState(() => _fingerprintEnabled = isReady);
+
+    // auto-trigger: শুধু একবার, এবং শুধু token থাকলে
+    if (isReady && !_autoTriggered) {
+      _autoTriggered = true;
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (mounted) {
         _loginWithFingerprint(auto: true);
       }
     }
@@ -119,7 +132,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
     // Enabled না থাকলে — Settings এ যাওয়ার dialog দেখাও
     if (!_fingerprintEnabled) {
-      _showFingerprintDisabledDialog();
+      if (!auto) _showFingerprintDisabledDialog();
       return;
     }
 
@@ -128,18 +141,45 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
 
     try {
       final response = await BiometricAuthService.loginWithFingerprint();
+
+      if (!mounted) return;
+
       if (response == null) {
+        // login fail হলে enabled state আবার check করি
+        final stillEnabled  = await BiometricAuthService.isFingerprintEnabled();
+        final stillHasToken = await BiometricAuthService.hasStoredToken();
+        final stillReady    = stillEnabled && stillHasToken;
+
+        if (mounted) {
+          setState(() => _fingerprintEnabled = stillReady);
+        }
+
+        // auto-attempt ব্যর্থ হলে popup দেখানো হবে না।
         if (!auto && mounted) {
-          _showError('Fingerprint not recognized. Please try again.');
+          if (!stillReady) {
+            _showBanner(
+              icon: Icons.fingerprint_rounded,
+              color: Colors.orangeAccent,
+              title: 'Fingerprint Session Expired',
+              message: 'Your fingerprint session has expired. Please login with email and re-enable fingerprint in Settings.',
+            );
+          } else {
+            _showError('Fingerprint login failed. Please try again, or use email login.');
+          }
         }
         return;
       }
+
+      // সফল login এর পরে নিশ্চিত করি refresh token সেভ আছে
+      await BiometricAuthService.refreshStoredToken();
+
       await ActivityLogger.log(activityType: 'login_success', device: _device);
       if (!mounted) return;
       AuthGuardService.init(context);
       Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
+
     } catch (_) {
-      if (mounted) _showError('Fingerprint login failed. Use email login.');
+      if (mounted && !auto) _showError('Fingerprint login failed. Use email login.');
     } finally {
       if (mounted) setState(() => _fingerprintLoading = false);
     }
@@ -186,6 +226,9 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
         email: email, password: password,
       );
       if (authRes.user == null) throw const AuthException('Login failed');
+
+      // Email login সফল হলে fingerprint এর stored token refresh করি
+      await BiometricAuthService.refreshStoredToken();
 
       final factors = await supabase.auth.mfa.listFactors();
       final hasMfa  = factors.all.any((f) => f.status == FactorStatus.verified);
@@ -257,7 +300,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     ));
   }
 
-  /// Fingerprint disabled হলে — Settings এ যেতে বলে
   void _showFingerprintDisabledDialog() {
     if (!mounted) return;
     showDialog(
@@ -308,6 +350,23 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       color: Colors.white.withValues(alpha: 0.55),
                       fontSize: 14,
                       height: 1.6),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.cyanAccent,
+                      foregroundColor: const Color(0xFF0A1628),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: const Text('OK',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
                 ),
               ]),
             ),
@@ -624,7 +683,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
             ),
             const SizedBox(height: 20),
 
-            // ── SIGN IN button + Fingerprint button (সবসময় দেখাবে) ─────────
+            // ── SIGN IN button + Fingerprint button ────────────────────────
             Row(
               children: [
                 Expanded(
@@ -695,7 +754,7 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   ),
                 ),
 
-                // ── Fingerprint button — সবসময় দেখাবে ──────────────────────
+                // ── Fingerprint button ─────────────────────────────────────
                 const SizedBox(width: 12),
                 _buildFingerprintButton(),
               ],

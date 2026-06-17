@@ -20,6 +20,8 @@ android {
 
     defaultConfig {
         applicationId = "com.css.society.app"
+        // local_auth (biometric/fingerprint) এর জন্য minSdk 23 আবশ্যক।
+        // flutter.minSdkVersion ব্যবহার করলে default 21 হয়ে যায় — তাই hardcode করা হলো।
         minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = flutter.versionCode
@@ -56,6 +58,10 @@ android {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+
+    // FlutterFragmentActivity / BiometricPrompt (local_auth) এর জন্য আবশ্যক
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("androidx.core:core-ktx:1.13.1")
 }
 
 flutter {

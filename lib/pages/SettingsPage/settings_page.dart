@@ -2,8 +2,10 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/auth_guard_service.dart';
 import 'settings_constants.dart';
 import 'package:css/services/biometric_auth_service.dart';
+import 'fingerprint_setup_page.dart';
 
 import 'change_password_page.dart';
 import 'change_email_page.dart';
@@ -21,6 +23,7 @@ import 'bug_report_page.dart';
 import 'admin_feedback_page.dart';
 import 'admin_bug_report_page.dart';
 import 'package:css/pages/SettingsPage/help_support_page.dart';
+
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -70,10 +73,12 @@ class _SettingsPageState extends State<SettingsPage>
     }
   }
 
+  /// Toggle ON করলে → FingerprintSetupPage খুলবে (scan + save এখানেই হয়)
+  /// Toggle OFF করলে → confirm dialog দেখাবে
   Future<void> _toggleFingerprint(bool value) async {
     if (_fingerprintLoading) return;
 
-    // Device এ fingerprint না থাকলে tap করলে info দেখাবে
+    // Device এ fingerprint hardware/enrollment না থাকলে info দেখাবে
     if (!_fingerprintAvail) {
       _showFingerprintBanner(
         icon: Icons.fingerprint_rounded,
@@ -84,33 +89,23 @@ class _SettingsPageState extends State<SettingsPage>
       return;
     }
 
-    setState(() => _fingerprintLoading = true);
+    if (value) {
+      // ── ON: dedicated setup page এ পাঠাও ──────────────────────────────
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(builder: (_) => const FingerprintSetupPage()),
+      );
 
-    try {
-      if (value) {
-        final success = await BiometricAuthService.enableFingerprint();
-        if (!mounted) return;
-        if (success) {
-          setState(() => _fingerprintEnabled = true);
-          _showFingerprintBanner(
-            icon: Icons.fingerprint_rounded,
-            color: SC.green,
-            title: SC.tr('fingerprint_enabled_title'),
-            message: SC.tr('fingerprint_enabled_msg'),
-          );
-        } else {
-          _showFingerprintBanner(
-            icon: Icons.error_outline_rounded,
-            color: SC.red,
-            title: SC.tr('fingerprint_failed_title'),
-            message: SC.tr('fingerprint_failed_msg'),
-          );
-        }
-      } else {
-        _showDisableConfirmDialog();
+      if (!mounted) return;
+
+      if (result == true) {
+        setState(() => _fingerprintEnabled = true);
+        SC.toast(context, SC.tr('fingerprint_enabled_title'), SC.green);
       }
-    } finally {
-      if (mounted) setState(() => _fingerprintLoading = false);
+      // result == false/null হলে কিছু করার দরকার নেই, toggle আগের মতই থাকবে
+    } else {
+      // ── OFF: confirm dialog ────────────────────────────────────────────
+      _showDisableConfirmDialog();
     }
   }
 
@@ -296,9 +291,17 @@ class _SettingsPageState extends State<SettingsPage>
   Future<void> _logout() async {
     setState(() => _isLoggingOut = true);
     try {
-      await Supabase.instance.client.auth.signOut();
+      // ১. প্রথমেই Guard সার্ভিস বন্ধ করতে হবে যাতে এটি অটো-রিডাইরেক্ট না করে
+      AuthGuardService.dispose();
+
+      // ২. Fingerprint অফ থাকলে তবেই সার্ভার থেকে পুরোপুরি লগআউট হবে
+      if (!_fingerprintEnabled) {
+        await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+      }
+
       if (!mounted) return;
-      Navigator.pushNamedAndRemoveUntil(context, '/welcome', (_) => false);
+      // ৩. /welcome এর বদলে সরাসরি /login পেজে পাঠাতে হবে
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
     } catch (_) {
       if (!mounted) return;
       setState(() => _isLoggingOut = false);
@@ -744,7 +747,10 @@ class _SettingsPageState extends State<SettingsPage>
                 strokeWidth: 2, color: SC.cyan))
             : Switch.adaptive(
           value: _fingerprintEnabled,
-          onChanged: isAvail ? _toggleFingerprint : (val) => _toggleFingerprint(val),
+          // isAvail false হলেও tap করলে info dialog দেখানো প্রয়োজন,
+          // তাই onChanged সবসময় _toggleFingerprint কেই কল করে —
+          // ভেতরে isAvail চেক হয়।
+          onChanged: _toggleFingerprint,
           activeColor: SC.cyan,
           activeTrackColor: SC.cyan.withValues(alpha: 0.25),
           inactiveThumbColor: isAvail

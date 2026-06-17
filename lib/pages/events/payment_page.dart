@@ -32,8 +32,44 @@ class _PaymentPageState extends State<PaymentPage> {
   XFile? screenshotFile;
   bool loading = false;
 
-  static const String bkashNumber = '01XXXXXXXXX';
-  static const String nagadNumber  = '01XXXXXXXXX';
+  // ✅ আগে এগুলো hardcoded constant ছিল, এখন event থেকে আসবে (nullable)
+  String? bkashNumber;
+  String? nagadNumber;
+  bool _loadingNumbers = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPaymentNumbers();
+  }
+
+  /// ✅ Event-এর bkash/nagad number লোড করে।
+  /// যদি event তৈরির সময় UI থেকেই বানানো event map টা formData-এ পাস করা থাকে
+  /// (যেমন event_bkash_number / event_nagad_number key দিয়ে) তাহলে সেটা ব্যবহার হবে,
+  /// না থাকলে সরাসরি events টেবিল থেকে fetch করা হবে।
+  Future<void> _loadPaymentNumbers() async {
+    try {
+      final passedBkash = widget.formData['event_bkash_number'] as String?;
+      final passedNagad = widget.formData['event_nagad_number'] as String?;
+
+      if (passedBkash != null || passedNagad != null) {
+        bkashNumber = passedBkash;
+        nagadNumber = passedNagad;
+      } else {
+        final data = await supabase
+            .from('events')
+            .select('bkash_number, nagad_number')
+            .eq('id', widget.eventId)
+            .maybeSingle();
+        bkashNumber = data?['bkash_number'] as String?;
+        nagadNumber = data?['nagad_number'] as String?;
+      }
+    } catch (e) {
+      debugPrint('Failed to load payment numbers: $e');
+    } finally {
+      if (mounted) setState(() => _loadingNumbers = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -185,14 +221,17 @@ class _PaymentPageState extends State<PaymentPage> {
                   bottom: 100, left: -60,
                   child: SC.blob(180, SC.purple.withValues(alpha: 0.07))),
               SafeArea(
-                child: loading
+                child: (loading || _loadingNumbers)
                     ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       CircularProgressIndicator(color: SC.cyan),
                       const SizedBox(height: 20),
-                      Text(SC.tr('submitting'),
+                      Text(
+                          loading
+                              ? SC.tr('submitting')
+                              : SC.tr('loading'),
                           style: TextStyle(
                               color: textColor.withValues(alpha: 0.5))),
                     ],
@@ -208,8 +247,14 @@ class _PaymentPageState extends State<PaymentPage> {
                       children: [
                         _buildAmountCard(isDark, textColor, subTextColor, borderColor),
                         const SizedBox(height: 24),
-                        _sectionTitle(SC.tr('paymentInstructions')),
-                        _buildInstructionsCard(isDark, textColor, subTextColor, borderColor, cardColor),
+
+                        // ✅ যদি দুটো নম্বরই null হয়, পুরো instructions card hide এবং warning দেখাবে
+                        if (bkashNumber != null || nagadNumber != null) ...[
+                          _sectionTitle(SC.tr('paymentInstructions')),
+                          _buildInstructionsCard(isDark, textColor, subTextColor, borderColor, cardColor),
+                        ] else
+                          _buildNoPaymentMethodWarning(textColor),
+
                         const SizedBox(height: 24),
                         _sectionTitle(SC.tr('yourPaymentDetails')),
                         _buildPaymentFormCard(isDark, textColor, subTextColor, borderColor, cardColor),
@@ -231,6 +276,31 @@ class _PaymentPageState extends State<PaymentPage> {
     );
   }
 
+  Widget _buildNoPaymentMethodWarning(Color textColor) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: SC.red.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: SC.red.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline_rounded, color: SC.red, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(SC.tr('noPaymentMethod'),
+                style: TextStyle(
+                    color: textColor.withValues(alpha: 0.8),
+                    fontSize: 13,
+                    height: 1.5)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAmountCard(bool isDark, Color textColor, Color subTextColor,
       Color borderColor) {
     return ClipRRect(
@@ -242,11 +312,11 @@ class _PaymentPageState extends State<PaymentPage> {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             gradient: LinearGradient(colors: [
-              SC.cyan.withOpacity(0.15),
-              SC.blue.withOpacity(0.1),
+              SC.cyan.withValues(alpha: 0.15),
+              SC.blue.withValues(alpha: 0.1),
             ]),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: SC.cyan.withOpacity(0.3)),
+            border: Border.all(color: SC.cyan.withValues(alpha: 0.3)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -274,22 +344,33 @@ class _PaymentPageState extends State<PaymentPage> {
 
   Widget _buildInstructionsCard(bool isDark, Color textColor, Color subTextColor,
       Color borderColor, Color cardColor) {
-    return _glassCard(isDark, borderColor, cardColor, [
-      _paymentMethodRow('bKash', bkashNumber,
-          const Color(0xFFE2136E), Icons.account_balance_wallet, textColor),
-      Padding(
+    final children = <Widget>[];
+
+    if (bkashNumber != null) {
+      children.add(_paymentMethodRow('bKash', bkashNumber!,
+          const Color(0xFFE2136E), Icons.account_balance_wallet, textColor));
+    }
+
+    if (bkashNumber != null && nagadNumber != null) {
+      children.add(Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Divider(color: borderColor, height: 1),
-      ),
-      _paymentMethodRow('Nagad', nagadNumber,
-          const Color(0xFFFF6B00), Icons.account_balance_wallet_outlined, textColor),
-      const SizedBox(height: 16),
+      ));
+    }
+
+    if (nagadNumber != null) {
+      children.add(_paymentMethodRow('Nagad', nagadNumber!,
+          const Color(0xFFFF6B00), Icons.account_balance_wallet_outlined, textColor));
+    }
+
+    children.add(const SizedBox(height: 16));
+    children.add(
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: SC.amber.withOpacity(0.08),
+          color: SC.amber.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: SC.amber.withOpacity(0.25)),
+          border: Border.all(color: SC.amber.withValues(alpha: 0.25)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,13 +380,15 @@ class _PaymentPageState extends State<PaymentPage> {
             Expanded(
               child: Text(SC.tr('instructionNote'),
                   style: TextStyle(
-                      color: SC.amber.withOpacity(0.9),
+                      color: SC.amber.withValues(alpha: 0.9),
                       fontSize: 12, height: 1.6)),
             ),
           ],
         ),
       ),
-    ]);
+    );
+
+    return _glassCard(isDark, borderColor, cardColor, children);
   }
 
   Widget _paymentMethodRow(String method, String number, Color color,
@@ -315,7 +398,7 @@ class _PaymentPageState extends State<PaymentPage> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(12)),
           child: Icon(icon, color: color, size: 22),
         ),
@@ -347,9 +430,9 @@ class _PaymentPageState extends State<PaymentPage> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
+              color: color.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: color.withOpacity(0.3)),
+              border: Border.all(color: color.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -460,7 +543,7 @@ class _PaymentPageState extends State<PaymentPage> {
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: screenshotFile != null
-                ? SC.cyan.withOpacity(0.6)
+                ? SC.cyan.withValues(alpha: 0.6)
                 : borderColor,
             width: 2,
           ),
@@ -482,10 +565,10 @@ class _PaymentPageState extends State<PaymentPage> {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.7),
+                    color: Colors.black.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: SC.cyan.withOpacity(0.5)),
+                        color: SC.cyan.withValues(alpha: 0.5)),
                   ),
                   child: Row(
                     children: [
@@ -510,7 +593,7 @@ class _PaymentPageState extends State<PaymentPage> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                  color: SC.cyan.withOpacity(0.1),
+                  color: SC.cyan.withValues(alpha: 0.1),
                   shape: BoxShape.circle),
               child: Icon(Icons.upload_file_rounded,
                   color: SC.cyan, size: 40),

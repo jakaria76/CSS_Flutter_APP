@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:in_app_update/in_app_update.dart'; // ✅ NEW
 
 // Services
 import '../services/banner_service.dart';
@@ -38,6 +39,9 @@ import '../widgets/dashboard/offline_banner_widget.dart';
 import '../widgets/dashboard/emergency_requests_banner_widget.dart';
 import '../widgets/dashboard/blood_dashboard_section_widget.dart';
 import '../widgets/dashboard/about_summary_section_widget.dart';
+
+// ── Join Our Community card ─────────────────────────────────────────────── // ✅ NEW
+import 'package:css/widgets/join_community_card.dart'; // ✅ NEW
 
 // ── AI Chat Popup ──────────────────────────────────────────────────────────
 import 'package:css/widgets/ai_chat_popup.dart';
@@ -166,8 +170,8 @@ class _DashboardPageState extends State<DashboardPage>
 
   // ── Loading screen → dashboard fade out/in ────────────────────────────────
   late AnimationController _loadingFadeController;
-  late Animation<double>   _loadingFadeOut; // loading screen fade out
-  late Animation<double>   _dashboardFadeIn; // dashboard fade in
+  late Animation<double>   _loadingFadeOut;
+  late Animation<double>   _dashboardFadeIn;
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
   @override
@@ -195,9 +199,6 @@ class _DashboardPageState extends State<DashboardPage>
       duration: const Duration(milliseconds: 2000),
     )..repeat(reverse: true);
 
-    // Loading screen transition:
-    // 0.0→0.5 = loading screen fade out
-    // 0.5→1.0 = dashboard fade in
     _loadingFadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
@@ -216,11 +217,11 @@ class _DashboardPageState extends State<DashboardPage>
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      _checkForUpdate(); // ✅ NEW — app খুললেই update check করবে
       await _initConnectivity();
       await _loadCachedDataFirst();
       if (mounted) {
         setState(() => _initialLoadDone = true);
-        // Loading screen fade out → dashboard fade in
         await _loadingFadeController.forward();
         _fadeController.forward(from: 0);
       }
@@ -237,6 +238,20 @@ class _DashboardPageState extends State<DashboardPage>
     _aiGlowController.dispose();
     _loadingFadeController.dispose();
     super.dispose();
+  }
+
+  // ✅ NEW — In-App Update (Immediate Mode) ──────────────────────────────────
+  Future<void> _checkForUpdate() async {
+    try {
+      final updateInfo = await InAppUpdate.checkForUpdate();
+      if (updateInfo.updateAvailability == UpdateAvailability.updateAvailable) {
+        // পুরো screen block করে force update করবে
+        await InAppUpdate.performImmediateUpdate();
+      }
+    } catch (e) {
+      // Error হলে চুপ থাকবে, app crash করবে না
+      debugPrint('In-app update check failed: $e');
+    }
   }
 
   // ─── Connectivity ─────────────────────────────────────────────────────────
@@ -676,7 +691,7 @@ class _DashboardPageState extends State<DashboardPage>
         backgroundColor: bgColor,
         floatingActionButton: _initialLoadDone
             ? _buildAiFloatingButton(isDark)
-            : null, // loading screen-এ FAB লুকানো
+            : null,
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
 
         body: Stack(
@@ -684,7 +699,7 @@ class _DashboardPageState extends State<DashboardPage>
           children: [
 
             // ════════════════════════════════════════════════════════════
-            // LAYER 1 — Dashboard (নিচে থাকে)
+            // LAYER 1 — Dashboard
             // ════════════════════════════════════════════════════════════
             FadeTransition(
               opacity: _dashboardFadeIn,
@@ -730,7 +745,7 @@ class _DashboardPageState extends State<DashboardPage>
             ),
 
             // ════════════════════════════════════════════════════════════
-            // LAYER 2 — Loading Screen (উপরে থাকে, data এলে fade out)
+            // LAYER 2 — Loading Screen
             // ════════════════════════════════════════════════════════════
             if (!_initialLoadDone || _loadingFadeController.value < 1.0)
               FadeTransition(
@@ -832,6 +847,9 @@ class _DashboardPageState extends State<DashboardPage>
       children: [
         if (!_isLoadingBanners && _banners.isNotEmpty)
           BannerSection(isLoading: false, banners: _banners),
+
+        // ✅ NEW — স্লাইডারের ঠিক নিচে "Join Our Community" চিকন কার্ড
+        const JoinCommunityCard(),
 
         if (_recentNotices.isNotEmpty)
           NoticeSection(
